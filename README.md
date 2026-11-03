@@ -35,6 +35,10 @@ Par défaut, seulement **contre un joueur**. Réglages dans `config/cobblemon_un
 - **Types**, **talents** (le caché est marqué, survol = description) et **stats de base** avec le total.
 - **Attaques** par onglet (Niveau, CT, Œufs, Tuteur, Évolution, Autres), barre de recherche dans toutes
   les catégories, survol = description.
+- Onglet **Spawn** : où le Pokémon apparaît, forme par forme : rareté, niveaux, au sol / sous l'eau / pêche,
+  **biomes**, conditions (jour/nuit, pluie, lune, hauteur, structures, Poké Snack...), groupes et alphas.
+  Survol d'une carte = la liste des biomes concernés. En solo, les données viennent de ton monde
+  (datapacks compris) ; sur un serveur, de tes mods.
 
 ## Calculateur de dégâts — touche J / `/feurcalc`
 

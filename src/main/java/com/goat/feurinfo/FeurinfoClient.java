@@ -10,6 +10,7 @@ import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandManager;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallback;
 import net.fabricmc.fabric.api.client.command.v2.FabricClientCommandSource;
+import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 
@@ -27,6 +28,8 @@ public final class FeurinfoClient implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
         ClientCommandRegistrationCallback.EVENT.register((dispatcher, registryAccess) -> register(dispatcher));
+        // Lit les données d'apparition (onglet Spawn) en arrière-plan dès qu'on entre dans un monde
+        ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> SpawnIndex.ensureLoaded());
     }
 
     private static void register(CommandDispatcher<FabricClientCommandSource> dispatcher) {

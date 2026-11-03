@@ -46,7 +46,7 @@ import java.util.TreeMap;
  *  - à gauche : le Pokémon en 3D (Glisser pour tourner, clic = cri), sa forme (< >), un bouton shiny,
  *    puis ses talents (survol = description) et ses stats de base ;
  *  - à droite : ses attaques par onglet (Niveau, CT, Œufs, Tuteur, Évolution, Autres),
- *    survol d'une attaque = sa description.
+ *    survol d'une attaque = sa description ; dernier onglet "Spawn" = où il apparaît (biomes, conditions).
  */
 public final class FeurinfoScreen extends Screen {
     private static final int MARGIN = 8;
@@ -60,7 +60,7 @@ public final class FeurinfoScreen extends Screen {
     private static final int TYPE_COL_W = 24;
 
     private enum Tab {
-        LEVEL("level"), TM("tm"), EGG("egg"), TUTOR("tutor"), EVOLUTION("evolution"), OTHER("other");
+        LEVEL("level"), TM("tm"), EGG("egg"), TUTOR("tutor"), EVOLUTION("evolution"), OTHER("other"), SPAWN("spawn");
 
         final String key;
 
@@ -96,6 +96,19 @@ public final class FeurinfoScreen extends Screen {
     private float rotation = 35F;
     private boolean draggingModel;
     private long lastFrameMs;
+    // Onglet Spawn
+    private List<SpawnView.Card> spawnCards = List.of();
+    private String spawnKey = "";
+    private List<LaidCard> laidCards = List.of();
+    private int laidWidth = -1;
+    private int spawnScroll;
+    private int spawnContentH;
+
+    private record LaidCard(SpawnView.Card card, List<FormattedCharSequence> lines, int height) {
+    }
+
+    private static final int SPAWN_LINE = 10;
+    private static final int SPAWN_GAP = 4;
 
     // --- Widgets ---
     private EditBox search;
@@ -147,7 +160,10 @@ public final class FeurinfoScreen extends Screen {
         }
         formIndex = 0;
         shiny = false;
-        tab = Tab.LEVEL;
+        if (tab != Tab.SPAWN) {
+            tab = Tab.LEVEL; // on reste sur "Spawn" si on y était
+        }
+        spawnScroll = 0;
         rotation = 35F;
         model = null;
         computeRows();
@@ -186,7 +202,8 @@ public final class FeurinfoScreen extends Screen {
         other.addAll(learnset.getFormChangeMoves());
         addSorted(Tab.OTHER, other);
 
-        if (rows.get(tab).isEmpty()) {
+        spawnScroll = 0;
+        if (tab != Tab.SPAWN && rows.get(tab).isEmpty()) {
             for (Tab t : Tab.values()) {
                 if (!rows.get(t).isEmpty()) {
                     tab = t;
@@ -260,6 +277,7 @@ public final class FeurinfoScreen extends Screen {
             case TUTOR -> I18n.get("feurinfo.method.tutor");
             case EVOLUTION -> I18n.get("feurinfo.method.evolution");
             case OTHER -> I18n.get("feurinfo.method.other");
+            case SPAWN -> "";
         };
     }
 
@@ -289,9 +307,11 @@ public final class FeurinfoScreen extends Screen {
                 visible.add(t);
             }
         }
+        visible.remove(Tab.SPAWN);
         if (visible.isEmpty()) {
             visible.add(Tab.LEVEL);
         }
+        visible.add(Tab.SPAWN); // toujours là, en dernier
         return visible;
     }
 
@@ -314,6 +334,7 @@ public final class FeurinfoScreen extends Screen {
     @Override
     protected void init() {
         tabButtons.clear();
+        SpawnIndex.ensureLoaded();
 
         panelY = TOP;
         panelH = height - TOP - MARGIN;
@@ -434,6 +455,7 @@ public final class FeurinfoScreen extends Screen {
     private void selectTab(Tab t) {
         tab = t;
         scroll = 0;
+        spawnScroll = 0;
         if (moveFilter != null && filtering()) {
             moveFilter.setValue(""); // cliquer un onglet quitte la recherche
         }
@@ -443,6 +465,9 @@ public final class FeurinfoScreen extends Screen {
     private void updateTabButtons() {
         boolean searching = filtering();
         tabButtons.forEach((t, button) -> button.active = searching || t != tab);
+        if (moveFilter != null) {
+            moveFilter.visible = tab != Tab.SPAWN || searching; // pas de recherche d'attaque dans l'onglet Spawn
+        }
     }
 
     private void onSearchChanged(String text) {
@@ -517,6 +542,12 @@ public final class FeurinfoScreen extends Screen {
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
+        if (species != null && showingSpawns() && mouseX >= rightX && mouseX < rightX + rightW
+                && mouseY >= spawnTop() && mouseY < listBottom) {
+            spawnScroll -= (int) Math.signum(scrollY) * 24;
+            spawnScroll = Mth.clamp(spawnScroll, 0, spawnMaxScroll());
+            return true;
+        }
         if (species != null && mouseX >= rightX && mouseX < rightX + rightW && mouseY >= listTop && mouseY < listBottom) {
             scroll -= (int) Math.signum(scrollY) * 3;
             scroll = Mth.clamp(scroll, 0, maxScroll());
@@ -608,7 +639,11 @@ public final class FeurinfoScreen extends Screen {
         graphics.drawCenteredString(font, formLabel, (formLeft + formRight) / 2, rowY + 6, 0xFFFFFFFF);
 
         drawInfo(graphics, mouseX, mouseY);
-        drawMoves(graphics, mouseX, mouseY);
+        if (showingSpawns()) {
+            drawSpawns(graphics, mouseX, mouseY);
+        } else {
+            drawMoves(graphics, mouseX, mouseY);
+        }
     }
 
     /** Talents (survol = description) et stats de base, sous le modèle 3D. */
@@ -834,6 +869,147 @@ public final class FeurinfoScreen extends Screen {
             }
             graphics.renderTooltip(font, lines, mouseX, mouseY);
         }
+    }
+
+
+    // =======================================================================================
+    // Onglet Spawn : où apparaît le Pokémon
+    // =======================================================================================
+
+    private boolean showingSpawns() {
+        return tab == Tab.SPAWN && !filtering();
+    }
+
+    private int spawnTop() {
+        return filterY + 26;
+    }
+
+    private int spawnMaxScroll() {
+        return Math.max(0, spawnContentH - (listBottom - spawnTop()));
+    }
+
+    /** Refait les cartes si l'espèce, la forme ou les données ont changé, et les découpe en lignes à la bonne largeur. */
+    private void prepareSpawns(int textW) {
+        String key = species.getName() + "|" + formIndex + "|" + SpawnIndex.version();
+        if (!key.equals(spawnKey)) {
+            spawnKey = key;
+            spawnCards = SpawnView.cards(species, forms, formIndex);
+            laidWidth = -1;
+        }
+        if (laidWidth != textW) {
+            laidWidth = textW;
+            List<LaidCard> laid = new ArrayList<>();
+            int total = 0;
+            for (SpawnView.Card card : spawnCards) {
+                List<FormattedCharSequence> lines = new ArrayList<>();
+                for (Component line : card.lines()) {
+                    lines.addAll(font.split(line, textW));
+                }
+                int h = lines.size() * SPAWN_LINE + 5;
+                laid.add(new LaidCard(card, lines, h));
+                total += h + SPAWN_GAP;
+            }
+            laidCards = laid;
+            spawnContentH = Math.max(0, total - SPAWN_GAP);
+        }
+    }
+
+    private void drawSpawns(GuiGraphics graphics, int mouseX, int mouseY) {
+        SpawnIndex.ensureLoaded(); // recharge si on a changé de monde
+        int x0 = rightX + 6;
+        int x1 = rightX + rightW - 8;
+        int top = spawnTop();
+        int bottom = listBottom;
+
+        if (!SpawnIndex.isReady()) {
+            graphics.drawCenteredString(font, Component.translatable("feurinfo.spawn.loading"), rightX + rightW / 2,
+                    top + 12, 0xFFB0B8C0);
+            return;
+        }
+        prepareSpawns(x1 - x0 - 8);
+
+        // En-tête : nombre d'apparitions + d'où viennent les données
+        int n = laidCards.size();
+        Component count = n == 1 ? Component.translatable("feurinfo.spawn.count_one")
+                : Component.translatable("feurinfo.spawn.count", n);
+        graphics.drawString(font, count, x0, filterY + 2, n == 0 ? 0xFF9AA4AE : 0xFFFFD866, false);
+        String sourceKey = SpawnIndex.source() == SpawnIndex.Source.WORLD ? "feurinfo.spawn.source.world" : "feurinfo.spawn.source.mods";
+        String note = I18n.get(sourceKey);
+        int noteMax = x1 - x0;
+        if (font.width(note) > noteMax) {
+            note = font.plainSubstrByWidth(note, Math.max(0, noteMax - font.width("…"))) + "…";
+        }
+        graphics.drawString(font, note, x0, filterY + 13, 0xFF6A7480, false);
+        boolean noteHovered = mouseX >= x0 && mouseX < x0 + font.width(note) && mouseY >= filterY + 12 && mouseY < filterY + 22;
+        graphics.fill(x0 - 2, top - 3, x1 + 2, top - 2, 0xFF3A4450);
+
+        if (n == 0) {
+            Component empty = Component.translatable(formIndex > 0 ? "feurinfo.spawn.none_form" : "feurinfo.spawn.none");
+            List<FormattedCharSequence> lines = font.split(empty, x1 - x0 - 10);
+            for (int i = 0; i < lines.size(); i++) {
+                graphics.drawCenteredString(font, lines.get(i), rightX + rightW / 2, top + 10 + i * 10, 0xFFB0B8C0);
+            }
+            if (noteHovered) {
+                renderSourceTooltip(graphics, sourceKey, mouseX, mouseY);
+            }
+            return;
+        }
+
+        spawnScroll = Mth.clamp(spawnScroll, 0, spawnMaxScroll());
+        boolean mouseInList = mouseX >= x0 - 2 && mouseX < x1 + 2 && mouseY >= top && mouseY < bottom;
+        LaidCard hovered = null;
+
+        graphics.enableScissor(rightX + 1, top, rightX + rightW - 1, bottom);
+        // 1er passage : fonds des cartes + barre de couleur (rareté)
+        int y = top - spawnScroll;
+        for (LaidCard laid : laidCards) {
+            if (y + laid.height() > top && y < bottom) {
+                boolean hover = mouseInList && mouseY >= y && mouseY < y + laid.height();
+                if (hover) {
+                    hovered = laid;
+                }
+                graphics.fill(x0 - 2, y, x1 + 2, y + laid.height(), hover ? 0x30FFFFFF : 0x16FFFFFF);
+                graphics.fill(x0 - 2, y, x0, y + laid.height(), laid.card().color());
+            }
+            y += laid.height() + SPAWN_GAP;
+        }
+        graphics.flush();
+        // 2e passage : textes
+        y = top - spawnScroll;
+        for (LaidCard laid : laidCards) {
+            if (y + laid.height() > top && y < bottom) {
+                int ty = y + 3;
+                for (FormattedCharSequence line : laid.lines()) {
+                    graphics.drawString(font, line, x0 + 4, ty, 0xFFFFFFFF, false);
+                    ty += SPAWN_LINE;
+                }
+            }
+            y += laid.height() + SPAWN_GAP;
+        }
+        graphics.disableScissor();
+
+        // Barre de défilement
+        int trackH = bottom - top;
+        if (spawnContentH > trackH) {
+            int barH = Math.max(10, trackH * trackH / spawnContentH);
+            int barY = top + (trackH - barH) * spawnScroll / Math.max(1, spawnMaxScroll());
+            graphics.fill(x1 + 4, top, x1 + 6, bottom, 0x30FFFFFF);
+            graphics.fill(x1 + 4, barY, x1 + 6, barY + barH, 0xC0FFFFFF);
+        }
+
+        if (hovered != null && !hovered.card().tooltip().isEmpty()) {
+            List<FormattedCharSequence> lines = new ArrayList<>();
+            for (Component line : hovered.card().tooltip()) {
+                lines.addAll(font.split(line, 240));
+            }
+            graphics.renderTooltip(font, lines, mouseX, mouseY);
+        } else if (noteHovered) {
+            renderSourceTooltip(graphics, sourceKey, mouseX, mouseY);
+        }
+    }
+
+    private void renderSourceTooltip(GuiGraphics graphics, String sourceKey, int mouseX, int mouseY) {
+        graphics.renderTooltip(font, font.split(Component.translatable(sourceKey + ".long"), 240), mouseX, mouseY);
     }
 
     private void drawRight(GuiGraphics graphics, Component text, int right, int y, int color) {
