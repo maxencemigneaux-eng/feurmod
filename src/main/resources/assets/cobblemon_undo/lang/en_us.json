@@ -1,0 +1,11 @@
+{
+  "cobblemon_undo.button": "Undo",
+  "cobblemon_undo.send_now": "Send",
+  "cobblemon_undo.waiting": "Waiting for opponent...",
+  "cobblemon_undo.undone": "Choice cancelled: you can pick another action.",
+  "cobblemon_undo.too_late": "Too late: the turn has already started.",
+  "key.cobblemon_undo.undo": "Undo my choice (battle)",
+  "category.cobblemon_undo": "Cobblemon Undo",
+  "cobblemon_undo.confirm": "Choice ready: Send or Undo?",
+  "key.cobblemon_undo.send": "Send my choice (battle)"
+}

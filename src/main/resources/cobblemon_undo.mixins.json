@@ -1,0 +1,12 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "com.goat.cobblemonundo.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "client": [
+    "ClientBattleMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

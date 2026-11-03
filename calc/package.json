@@ -1,0 +1,14 @@
+{
+  "name": "feurcalc-js",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Regroupe @smogon/calc (calculateur de dégâts de Pokémon Showdown) en un seul fichier pour Feurcalc",
+  "license": "MIT",
+  "scripts": {
+    "build": "esbuild wrapper.js --bundle --format=iife --target=es2019 --minify --legal-comments=none --outfile=../src/main/resources/assets/feurcalc/js/feurcalc.js"
+  },
+  "dependencies": {
+    "@smogon/calc": "0.12.0",
+    "esbuild": "0.28.2"
+  }
+}

@@ -1,0 +1,11 @@
+.gradle/
+build/
+out/
+run/
+.idea/
+*.iml
+.vscode/
+
+# Généré par la compilation (calc/)
+calc/node_modules/
+src/main/resources/assets/feurcalc/js/feurcalc.js

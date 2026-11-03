@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "id": "feurmod",
+  "version": "${version}",
+  "name": "Feurmod",
+  "description": "Les mods Cobblemon de Goat en un seul : bouton « Annuler » en combat (comme Showdown), fiche Pokémon /feurinfo (modèle 3D, talents, stats, attaques) et calculateur de dégâts façon Showdex (/feurcalc, touche J). Calculs : @smogon/calc (MIT).",
+  "authors": ["Goat"],
+  "environment": "*",
+  "entrypoints": {
+    "main": ["com.goat.cobblemonundo.CobblemonUndo"],
+    "client": [
+      "com.goat.cobblemonundo.client.CobblemonUndoClient",
+      "com.goat.feurinfo.FeurinfoClient",
+      "com.goat.feurcalc.FeurcalcClient"
+    ]
+  },
+  "mixins": [
+    "cobblemon_undo.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=0.16.0",
+    "fabric-api": "*",
+    "minecraft": "~1.21.1",
+    "java": ">=21",
+    "cobblemon": ">=1.8.0"
+  },
+  "breaks": {
+    "cobblemon_undo": "*",
+    "feurinfo": "*",
+    "feurcalc": "*"
+  }
+}
