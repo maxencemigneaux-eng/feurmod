@@ -58,7 +58,27 @@ public final class CalcState {
         if (a.isEmpty()) {
             fillFromParty();
         }
+        applyPendingSets();
         requestIfChanged();
+    }
+
+    /** Les Pokémon en attente de leur set "le plus joué" (les sets se chargent en arrière-plan). */
+    private void applyPendingSets() {
+        if (!a.autoSet && !b.autoSet) {
+            return;
+        }
+        SmogonSets.load();
+        if (SmogonSets.status() == SmogonSets.Status.LOADING || SmogonSets.status() == SmogonSets.Status.NOT_STARTED) {
+            return;
+        }
+        for (MonState m : new MonState[]{a, b}) {
+            if (m.autoSet) {
+                m.autoSet = false;
+                if (!m.isEmpty()) {
+                    SmogonSets.applyBest(m);
+                }
+            }
+        }
     }
 
     /** Si A est vide, on prend le premier Pokémon de l'équipe. */
@@ -149,7 +169,9 @@ public final class CalcState {
                     fresh = MonState.fromPokemon(own);
                 } else {
                     fresh = MonState.fromBattle(mine);
-                    SavedSets.apply(fresh);
+                    if (!SavedSets.apply(fresh)) {
+                        fresh.autoSet = true;
+                    }
                 }
                 fresh.uuid = mine.getUuid();
                 a.copyFrom(fresh);
@@ -167,7 +189,9 @@ public final class CalcState {
         if (opp != null) {
             if (!opp.getUuid().equals(lastOppUuid)) {
                 MonState fresh = MonState.fromBattle(opp);
-                SavedSets.apply(fresh);
+                if (!SavedSets.apply(fresh)) {
+                    fresh.autoSet = true; // le set le plus joué (Smogon / Showdown)
+                }
                 b.copyFrom(fresh);
                 lastOppUuid = opp.getUuid();
                 lastOppSig = null;
@@ -233,6 +257,8 @@ public final class CalcState {
 
     /** À appeler quand le spread (talent, objet, nature, IV, EV, attaques, Téra) est modifié à la main. */
     public void spreadEdited(MonState mon) {
+        mon.setModified = true;
+        mon.autoSet = false;
         if (mon.source != MonState.Source.PARTY && !mon.isEmpty()) {
             SavedSets.remember(mon);
         }

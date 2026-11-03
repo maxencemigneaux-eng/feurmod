@@ -14,17 +14,31 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
 
-/** Petite fenêtre de choix avec recherche (Pokémon, talent, objet, nature, attaque, type Téra). */
+/** Petite fenêtre de choix avec recherche (Pokémon, talent, objet, nature, attaque, type Téra, set). */
 public final class Picker {
+    /**
+     * Une ligne. header = titre de groupe (non cliquable) ; group = nom du groupe, affiché à droite pendant une recherche ;
+     * tip = infobulle au survol.
+     */
     public record Entry(String id, String label, String detail, @Nullable ElementalType icon, ItemStack stack,
-                        boolean dim, String search) {
+                        boolean dim, String search, boolean header, String group, @Nullable List<Component> tip) {
         public static Entry of(String id, String label, String detail, @Nullable ElementalType icon, boolean dim, String extraSearch) {
             return new Entry(id, label, detail, icon, ItemStack.EMPTY, dim,
-                    Names.normalize(label) + " " + Names.normalize(id) + " " + Names.normalize(extraSearch));
+                    Names.normalize(label) + " " + Names.normalize(id) + " " + Names.normalize(extraSearch), false, "", null);
         }
 
         public static Entry item(String id, String label, ItemStack stack) {
-            return new Entry(id, label, "", null, stack, false, Names.normalize(label) + " " + Names.normalize(id));
+            return new Entry(id, label, "", null, stack, false, Names.normalize(label) + " " + Names.normalize(id),
+                    false, "", null);
+        }
+
+        public static Entry header(String label) {
+            return new Entry("", label, "", null, ItemStack.EMPTY, false, "", true, "", null);
+        }
+
+        public Entry withGroup(String groupName, @Nullable List<Component> tooltip) {
+            return new Entry(id, label, detail, icon, stack, dim, search + " " + Names.normalize(groupName), header,
+                    groupName, tooltip);
         }
     }
 
@@ -44,14 +58,20 @@ public final class Picker {
     private final int h;
     private int scroll;
     private int selected;
+    private boolean filtering;
 
     public Picker(Font font, Component title, List<Entry> entries, int anchorX, int anchorY, int screenW, int screenH,
                   Consumer<Entry> onPick) {
+        this(font, title, entries, anchorX, anchorY, screenW, screenH, 190, onPick);
+    }
+
+    public Picker(Font font, Component title, List<Entry> entries, int anchorX, int anchorY, int screenW, int screenH,
+                  int width, Consumer<Entry> onPick) {
         this.font = font;
         this.title = title;
         this.all = entries;
         this.onPick = onPick;
-        this.w = Math.min(190, screenW - 8);
+        this.w = Math.min(width, screenW - 8);
         this.h = Math.min(screenH - 8, HEADER + FILTER_H + 4 + ROW * 16 + 4);
         this.x = Mth.clamp(anchorX, 4, screenW - w - 4);
         this.y = Mth.clamp(anchorY, 4, screenH - h - 4);
@@ -60,6 +80,30 @@ public final class Picker {
         this.filter.setMaxLength(40);
         this.filter.setResponder(this::refilter);
         this.filtered = new ArrayList<>(entries);
+        this.selected = nextSelectable(0, 1);
+    }
+
+    /** Met en évidence (et fait défiler jusqu'à) l'entrée d'identifiant donné. */
+    public void select(String id) {
+        for (int i = 0; i < filtered.size(); i++) {
+            Entry e = filtered.get(i);
+            if (!e.header() && e.id().equals(id)) {
+                selected = i;
+                int rows = visibleRows();
+                scroll = Mth.clamp(i - rows / 3, 0, Math.max(0, filtered.size() - rows));
+                return;
+            }
+        }
+    }
+
+    /** Prochaine ligne cliquable (pas un titre) à partir de start, dans la direction donnée. */
+    private int nextSelectable(int start, int direction) {
+        for (int i = start; i >= 0 && i < filtered.size(); i += direction) {
+            if (!filtered.get(i).header()) {
+                return i;
+            }
+        }
+        return Mth.clamp(selected, 0, Math.max(0, filtered.size() - 1));
     }
 
     private int listTop() {
@@ -72,12 +116,16 @@ public final class Picker {
 
     private void refilter(String text) {
         String q = Names.normalize(text);
+        filtering = !q.isEmpty();
         if (q.isEmpty()) {
             filtered = new ArrayList<>(all);
         } else {
             List<Entry> starts = new ArrayList<>();
             List<Entry> contains = new ArrayList<>();
             for (Entry e : all) {
+                if (e.header()) {
+                    continue;
+                }
                 if (Names.normalize(e.label()).startsWith(q)) {
                     starts.add(e);
                 } else if (e.search().contains(q)) {
@@ -92,6 +140,7 @@ public final class Picker {
         }
         scroll = 0;
         selected = 0;
+        selected = nextSelectable(0, 1);
     }
 
     public boolean isInside(double mx, double my) {
@@ -114,7 +163,9 @@ public final class Picker {
         for (int i = 0; i < rows && scroll + i < filtered.size(); i++) {
             int index = scroll + i;
             int ry = top + i * ROW;
-            if (index == hovered || (hovered < 0 && index == selected)) {
+            if (filtered.get(index).header()) {
+                g.fill(x + 2, ry, x + w - 6, ry + ROW, 0x24FFFFFF);
+            } else if (index == hovered || (hovered < 0 && index == selected)) {
                 g.fill(x + 2, ry, x + w - 6, ry + ROW, 0x40FFFFFF);
             }
         }
@@ -150,12 +201,19 @@ public final class Picker {
         for (int i = 0; i < rows && scroll + i < filtered.size(); i++) {
             Entry e = filtered.get(scroll + i);
             int ry = top + i * ROW;
+            if (e.header()) {
+                g.drawString(font, Ui.ellipsize(font, e.label().toUpperCase(java.util.Locale.ROOT), w - 12), x + 5, ry + 2,
+                        0xFF8FA3B5, false);
+                continue;
+            }
             int tx = x + 5 + (e.icon() != null || !e.stack().isEmpty() ? 11 : 0);
-            int detailW = e.detail().isEmpty() ? 0 : font.width(e.detail()) + 4;
+            String detail = filtering && !e.group().isEmpty() ? e.group() : e.detail();
+            int detailW = detail.isEmpty() ? 0 : Math.min(font.width(detail), (w - 16) / 2) + 4;
             String label = Ui.ellipsize(font, e.label(), x + w - 8 - detailW - tx);
             g.drawString(font, label, tx, ry + 2, e.dim() ? 0xFF8A949E : 0xFFFFFFFF, false);
             if (detailW > 0) {
-                g.drawString(font, e.detail(), x + w - 7 - font.width(e.detail()), ry + 2, 0xFF8FA3B5, false);
+                String shown = Ui.ellipsize(font, detail, detailW - 4);
+                g.drawString(font, shown, x + w - 7 - font.width(shown), ry + 2, 0xFF8FA3B5, false);
             }
         }
         if (filtered.isEmpty()) {
@@ -163,6 +221,18 @@ public final class Picker {
         }
         g.flush();
         g.pose().popPose();
+
+        // Infobulle de la ligne survolée (ex. le détail d'un set)
+        if (hovered >= 0 && filtered.get(hovered).tip() != null && !filtered.get(hovered).tip().isEmpty()) {
+            List<net.minecraft.util.FormattedCharSequence> lines = new ArrayList<>();
+            for (Component c : filtered.get(hovered).tip()) {
+                lines.addAll(font.split(c, 240));
+            }
+            g.pose().pushPose();
+            g.pose().translate(0, 0, 400);
+            g.renderTooltip(font, lines, mouseX, mouseY);
+            g.pose().popPose();
+        }
     }
 
     private int hoveredIndex(double mx, double my) {
@@ -186,7 +256,7 @@ public final class Picker {
             return false;
         }
         int index = hoveredIndex(mx, my);
-        if (index >= 0) {
+        if (index >= 0 && !filtered.get(index).header()) {
             onPick.accept(filtered.get(index));
             return true;
         }
@@ -202,19 +272,19 @@ public final class Picker {
     public boolean keyPressed(int key, int scancode, int modifiers) {
         switch (key) {
             case GLFW.GLFW_KEY_ENTER, GLFW.GLFW_KEY_KP_ENTER -> {
-                if (selected < filtered.size()) {
+                if (selected < filtered.size() && !filtered.get(selected).header()) {
                     onPick.accept(filtered.get(selected));
                     return true;
                 }
                 return false;
             }
             case GLFW.GLFW_KEY_DOWN -> {
-                selected = Math.min(filtered.size() - 1, selected + 1);
+                selected = nextSelectable(Math.min(filtered.size() - 1, selected + 1), 1);
                 ensureVisible();
                 return false;
             }
             case GLFW.GLFW_KEY_UP -> {
-                selected = Math.max(0, selected - 1);
+                selected = nextSelectable(Math.max(0, selected - 1), -1);
                 ensureVisible();
                 return false;
             }

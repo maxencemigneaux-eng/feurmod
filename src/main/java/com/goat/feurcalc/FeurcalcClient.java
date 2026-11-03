@@ -46,7 +46,10 @@ public final class FeurcalcClient implements ClientModInitializer {
                 "key.feurcalc.open", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_J, "key.categories.feurmod"));
 
         // Le calculateur met quelques secondes à se charger : on le prépare dès le lancement, en arrière-plan
-        ClientLifecycleEvents.CLIENT_STARTED.register(client -> CalcEngine.warmUp());
+        ClientLifecycleEvents.CLIENT_STARTED.register(client -> {
+            CalcEngine.warmUp();
+            SmogonSets.load();
+        });
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             while (openKey.consumeClick()) {

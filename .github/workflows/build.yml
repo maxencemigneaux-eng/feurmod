@@ -36,6 +36,12 @@ jobs:
           npm run build
           test -s ../src/main/resources/assets/feurcalc/js/feurcalc.js
 
+      - name: Télécharger les sets Smogon et les stats d'utilisation de Showdown
+        run: |
+          cd calc
+          node sets.js
+          test -s ../src/main/resources/assets/feurcalc/sets/sets.json
+
       - name: Trouver la dernière version de Cobblemon 1.8.x
         id: cobblemon
         run: |

@@ -48,6 +48,17 @@ public final class MonState {
     public int hpPercent = 100;
     public final String[] moves = {"", "", "", ""};
 
+    // Set "tout fait" (Smogon / usage Showdown) appliqué, façon Showdex
+    /** "" = aucun ; SAVED = ton spread retenu ; sinon l'identifiant du set (format|nom). */
+    public String setId = "";
+    public String setLabel = "";
+    /** Le spread a été retouché à la main depuis que le set a été appliqué. */
+    public boolean setModified;
+    /** Appliquer le set le plus joué dès que les sets sont chargés. */
+    public boolean autoSet;
+
+    public static final String SAVED = "@saved";
+
     public boolean isEmpty() {
         return form == null || species == null;
     }
@@ -82,6 +93,10 @@ public final class MonState {
         status = o.status;
         hpPercent = o.hpPercent;
         System.arraycopy(o.moves, 0, moves, 0, 4);
+        setId = o.setId;
+        setLabel = o.setLabel;
+        setModified = o.setModified;
+        autoSet = o.autoSet;
     }
 
     public int evTotal() {
@@ -234,6 +249,10 @@ public final class MonState {
         for (int i = 0; i < 4; i++) {
             moves[i] = i < learned.size() ? learned.get(i) : "";
         }
+        setId = "";
+        setLabel = "";
+        setModified = false;
+        autoSet = false;
     }
 
     public static String firstType(@Nullable FormData form) {
@@ -316,10 +335,18 @@ public final class MonState {
             mv.add(move);
         }
         o.add("moves", mv);
+        if (!setId.isEmpty() && !setId.equals(SAVED)) {
+            o.addProperty("setId", setId);
+            o.addProperty("setLabel", setLabel);
+            o.addProperty("setModified", setModified);
+        }
         return o;
     }
 
     public void applySpread(JsonObject o) {
+        if (o.has("setId")) setId = o.get("setId").getAsString();
+        if (o.has("setLabel")) setLabel = o.get("setLabel").getAsString();
+        if (o.has("setModified")) setModified = o.get("setModified").getAsBoolean();
         if (o.has("ability")) ability = o.get("ability").getAsString();
         if (o.has("item")) item = o.get("item").getAsString();
         if (o.has("nature")) nature = o.get("nature").getAsString();

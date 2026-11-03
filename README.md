@@ -51,6 +51,10 @@ JavaScript déjà présent dans Cobblemon.
   talent, objet, nature, Téra, statut, attaques, IV, EV, boosts. Météo, champ, gravité, critique,
   protections et pièges de chaque côté.
 - En combat, tout se remplit seul (tes vraies stats, PV / boosts / statut de l'adversaire).
+- Ligne **Set** (comme Showdex) : les **sets Smogon** et le **set le plus joué sur Showdown** (statistiques
+  d'utilisation) de chaque format — NatDex, OU, UU, Monotype, VGC... L'adversaire reçoit **tout seul le set le
+  plus joué**. Clic pour choisir un autre set (survol = détail avec les %), ◀ ▶ ou clic droit pour passer au suivant.
+  Données [pkmn.github.io/smogon](https://pkmn.github.io/smogon), mises à jour à chaque compilation.
 - Les spreads que tu règles pour un adversaire sont **retenus par espèce** (`config/feurcalc_sets.json`).
 
 ## Télécharger le .jar
@@ -60,4 +64,5 @@ Dossier **`telechargement/`** du dépôt → clique sur le .jar → bouton **Dow
 ## Crédits
 
 Calculs de dégâts : [@smogon/calc](https://github.com/smogon/damage-calc) (licence MIT).
+Sets et statistiques d'utilisation : Smogon et Pokémon Showdown, via [pkmn/smogon](https://github.com/pkmn/smogon).
 Icônes de types, traductions et données : Cobblemon.

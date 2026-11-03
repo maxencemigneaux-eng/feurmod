@@ -44,6 +44,7 @@ import java.util.function.IntSupplier;
 /**
  * Le calculateur façon Showdex : à gauche toi (A), à droite l'adversaire (B), le terrain en haut.
  * Tout est modifiable : Pokémon, niveau, PV, talent, objet, nature, Téra, statut, attaques, IV, EV, boosts.
+ * Ligne "Set" : les sets Smogon et le set le plus joué sur Showdown (comme Showdex).
  */
 public final class FeurcalcScreen extends Screen {
     private static final int C_PANEL = 0xC0101418;
@@ -86,6 +87,7 @@ public final class FeurcalcScreen extends Screen {
         int x;
         int w;
         int headerY;
+        int setY;
         int hpY;
         int infoY;
         int movesY;
@@ -124,6 +126,7 @@ public final class FeurcalcScreen extends Screen {
         super(Component.translatable("feurcalc.title"));
         this.parent = parent;
         CalcEngine.warmUp();
+        SmogonSets.load();
         state.tick();
     }
 
@@ -149,8 +152,8 @@ public final class FeurcalcScreen extends Screen {
         panelY = topY + 17;
         panelW = (contentW - 6) / 2;
         int maxPanelH = height - panelY - 4;
-        rowH = Mth.clamp((maxPanelH - 49) / 17, 10, 15);
-        panelH = Math.min(maxPanelH, 49 + 17 * rowH);
+        rowH = Mth.clamp((maxPanelH - 62) / 17, 10, 15);
+        panelH = Math.min(maxPanelH, 62 + 17 * rowH);
 
         for (int s = 0; s < 2; s++) {
             Layout l = layouts[s];
@@ -158,7 +161,8 @@ public final class FeurcalcScreen extends Screen {
             l.x = l.panelX + 4;
             l.w = panelW - 8;
             l.headerY = panelY + 4;
-            l.hpY = l.headerY + 15;
+            l.setY = l.headerY + 15;
+            l.hpY = l.setY + 13;
             l.infoY = l.hpY + 13;
             l.movesY = l.infoY + 3 * rowH + 3;
             l.statsY = l.movesY + 5 * rowH + 3;
@@ -509,7 +513,8 @@ public final class FeurcalcScreen extends Screen {
         chip(g, x, y, 14, h, "⇄", C_TEXT, false, true, mx, my, state::swapSides, null, List.of(tr("feurcalc.tip.swap")));
         x += 17;
         chip(g, x, y, 12, h, "?", C_TITLE, false, true, mx, my, null, null, List.of(
-                tr("feurcalc.help.1"), tr("feurcalc.help.2"), tr("feurcalc.help.3"), tr("feurcalc.help.4"), tr("feurcalc.help.5")));
+                tr("feurcalc.help.1"), tr("feurcalc.help.2"), tr("feurcalc.help.3"), tr("feurcalc.help.4"), tr("feurcalc.help.5"),
+                tr("feurcalc.help.6")));
         x += 15;
 
         // État du calculateur à droite
@@ -567,6 +572,7 @@ public final class FeurcalcScreen extends Screen {
             return;
         }
         drawHeader(g, s, l, m, mx, my);
+        drawSet(g, s, l, m, mx, my);
         drawHp(g, s, l, m, mx, my);
         drawInfo(g, s, l, m, mx, my);
         drawMoves(g, s, l, m, mx, my);
@@ -664,6 +670,149 @@ public final class FeurcalcScreen extends Screen {
             return I18n.get(key);
         }
         return form.getName();
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // Ligne "Set" : sets Smogon + set le plus joué sur Showdown (façon Showdex)
+
+    private void drawSet(GuiGraphics g, int s, Layout l, MonState m, int mx, int my) {
+        int y = l.setY;
+        int h = 11;
+        text(Names.tr("feurcalc.set"), l.x, y + 2, C_LABEL);
+        int x = l.x + 18;
+        int w = l.w - 18 - 25;
+        List<SmogonSets.SmogonSet> sets = SmogonSets.forMon(m);
+        SmogonSets.SmogonSet current = null;
+        int index = -1;
+        for (int i = 0; i < sets.size(); i++) {
+            if (sets.get(i).id().equals(m.setId)) {
+                current = sets.get(i);
+                index = i;
+                break;
+            }
+        }
+
+        String label;
+        int color;
+        boolean loading = SmogonSets.status() == SmogonSets.Status.LOADING || SmogonSets.status() == SmogonSets.Status.NOT_STARTED;
+        if (!m.setId.isEmpty() && !m.setId.equals(MonState.SAVED)) {
+            label = (current != null ? current.fullLabel() : m.setLabel)
+                    + (m.setModified ? " " + Names.tr("feurcalc.set.modified") : "");
+            color = m.setModified ? 0xFFFFC870 : 0xFFFFE08A;
+        } else if (m.setId.equals(MonState.SAVED)) {
+            label = Names.tr("feurcalc.set.saved");
+            color = C_TEXT;
+        } else if (m.source == MonState.Source.PARTY) {
+            label = Names.tr("feurcalc.set.party");
+            color = 0xFF9AD0FF;
+        } else if (loading || m.autoSet) {
+            label = Names.tr("feurcalc.set.loading");
+            color = C_DIM;
+        } else if (sets.isEmpty()) {
+            label = Names.tr(SmogonSets.status() == SmogonSets.Status.FAILED ? "feurcalc.set.failed" : "feurcalc.set.none");
+            color = C_DIM;
+        } else {
+            label = Names.tr("feurcalc.set.default");
+            color = C_DIM;
+        }
+        String counter = sets.isEmpty() ? "" : (index >= 0 ? (index + 1) + "/" + sets.size() : String.valueOf(sets.size()));
+
+        List<Component> tip = new ArrayList<>();
+        if (current != null) {
+            tip.addAll(SmogonSets.tooltip(current));
+            if (m.setModified) {
+                tip.add(tr("feurcalc.set.modified_tip").withStyle(ChatFormatting.GOLD));
+            }
+        }
+        tip.add(tr("feurcalc.tip.set").withStyle(ChatFormatting.DARK_GRAY));
+        if (!SmogonSets.date().isEmpty()) {
+            tip.add(tr("feurcalc.tip.set_data", SmogonSets.date(), sets.size()).withStyle(ChatFormatting.DARK_GRAY));
+        }
+        int counterW = counter.isEmpty() ? 0 : font.width(counter) + 4;
+        if (counterW >= w / 3) {
+            counterW = 0;
+        }
+        label = Ui.ellipsize(font, label, w - 4 - counterW);
+        chip(g, x, y, w, h, label, color, false, false, mx, my, () -> openSetPicker(s, x, y + h), () -> stepSet(s, 1), tip);
+        if (counterW > 0) {
+            // petit compteur "3/12" à droite de la pastille
+            g.fill(x + w - counterW, y, x + w, y + h, 0x30000000);
+            textRight(counter, x + w - 2, y + 2, C_DIM);
+        }
+        chip(g, x + w + 2, y, 11, h, "◀", sets.isEmpty() ? C_DIM : C_TEXT, false, true, mx, my,
+                sets.isEmpty() ? null : () -> stepSet(s, -1), null, List.of(tr("feurcalc.tip.set_prev")));
+        chip(g, x + w + 14, y, 11, h, "▶", sets.isEmpty() ? C_DIM : C_TEXT, false, true, mx, my,
+                sets.isEmpty() ? null : () -> stepSet(s, 1), null, List.of(tr("feurcalc.tip.set_next")));
+    }
+
+    /** Set suivant / précédent de la liste. */
+    private void stepSet(int s, int direction) {
+        MonState m = mon(s);
+        List<SmogonSets.SmogonSet> sets = SmogonSets.forMon(m);
+        if (sets.isEmpty()) {
+            return;
+        }
+        int index = -1;
+        for (int i = 0; i < sets.size(); i++) {
+            if (sets.get(i).id().equals(m.setId)) {
+                index = i;
+            }
+        }
+        int next = index < 0 ? (direction > 0 ? 0 : sets.size() - 1) : Math.floorMod(index + direction, sets.size());
+        applySet(s, sets.get(next));
+    }
+
+    private void applySet(int s, SmogonSets.SmogonSet set) {
+        MonState m = mon(s);
+        SmogonSets.apply(m, set);
+        if (m.source != MonState.Source.PARTY) {
+            SavedSets.remember(m); // retenu pour cette espèce, comme un spread réglé à la main
+        }
+    }
+
+    private void openSetPicker(int s, int x, int y) {
+        MonState m = mon(s);
+        List<SmogonSets.SmogonSet> sets = SmogonSets.forMon(m);
+        Map<String, SmogonSets.SmogonSet> byId = new HashMap<>();
+        List<Picker.Entry> entries = new ArrayList<>();
+        if (!sets.isEmpty()) {
+            entries.add(Picker.Entry.of("@best", Names.tr("feurcalc.set.best"), "", null, false, "auto")
+                    .withGroup("", List.of(tr("feurcalc.set.best_tip"))));
+        } else {
+            entries.add(Picker.Entry.of("@none", Names.tr(SmogonSets.status() == SmogonSets.Status.READY
+                    ? "feurcalc.set.none" : "feurcalc.set.loading"), "", null, true, ""));
+        }
+        String lastFormat = null;
+        for (SmogonSets.SmogonSet set : sets) {
+            if (!set.format().id().equals(lastFormat)) {
+                lastFormat = set.format().id();
+                entries.add(Picker.Entry.header(set.format().label()));
+            }
+            String detail = set.isUsage() ? usagePercent(set.usage()) : "";
+            entries.add(Picker.Entry.of(set.id(), set.displayName(), detail, null, false, set.format().label())
+                    .withGroup(set.format().label(), SmogonSets.tooltip(set)));
+            byId.put(set.id(), set);
+        }
+        setFocused(null);
+        picker = new Picker(font, tr("feurcalc.picker.set"), entries, x, y, width, height, 210, e -> {
+            if (e.id().equals("@best")) {
+                SavedSets.forget(m);
+                SmogonSets.applyBest(m);
+            } else {
+                SmogonSets.SmogonSet set = byId.get(e.id());
+                if (set != null) {
+                    applySet(s, set);
+                }
+            }
+            syncBoxes(true);
+        });
+        picker.select(m.setId);
+        picker.filter.setFocused(true);
+    }
+
+    private static String usagePercent(double usage) {
+        double p = usage * 100;
+        return (p >= 10 ? String.format(Locale.ROOT, "%.0f", p) : String.format(Locale.ROOT, "%.1f", p)).replace('.', ',') + "%";
     }
 
     private void drawHp(GuiGraphics g, int s, Layout l, MonState m, int mx, int my) {
@@ -984,8 +1133,11 @@ public final class FeurcalcScreen extends Screen {
             MonState m = mon(s);
             int level = m.isEmpty() ? 50 : m.level;
             MonState fresh = MonState.fromForm(form.getSpecies(), form, level);
-            SavedSets.apply(fresh);
+            if (!SavedSets.apply(fresh)) {
+                fresh.autoSet = true; // le set le plus joué, dès que les sets sont chargés
+            }
             m.copyFrom(fresh);
+            state.tick();
         });
     }
 

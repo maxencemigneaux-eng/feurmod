@@ -57,7 +57,14 @@ public final class SavedSets {
             return false;
         }
         try {
+            mon.setId = "";
+            mon.setLabel = "";
+            mon.setModified = false;
             mon.applySpread(sets().getAsJsonObject(key));
+            if (mon.setId.isEmpty()) {
+                mon.setId = MonState.SAVED;
+            }
+            mon.autoSet = false;
             return true;
         } catch (Exception e) {
             LOG.warn("Spread illisible pour {}", key, e);
