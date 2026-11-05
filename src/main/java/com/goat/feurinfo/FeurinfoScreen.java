@@ -282,7 +282,7 @@ public final class FeurinfoScreen extends Screen {
             case TUTOR -> I18n.get("feurinfo.method.tutor");
             case EVOLUTION -> I18n.get("feurinfo.method.evolution");
             case OTHER -> I18n.get("feurinfo.method.other");
-            case SPAWN -> "";
+            case WEAK, SPAWN -> "";
         };
     }
 
