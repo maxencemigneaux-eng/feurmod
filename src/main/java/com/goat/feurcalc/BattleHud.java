@@ -145,10 +145,9 @@ public final class BattleHud {
             // En-tête : l'adversaire et ses PV
             int ty = y + 3;
             String target = state.b.displayName.isEmpty() ? state.b.species.getTranslatedName().getString() : state.b.displayName;
-            String header = Names.tr("feurcalc.hud.vs", target, state.b.hpPercent);
-            if (state.oppActiveCount() >= 2) {
-                header += "  " + Names.tr("feurcalc.hud.target", state.oppSlot() + 1, state.oppActiveCount());
-            }
+            String header = Names.tr("feurcalc.hud.vs", target, state.b.hpPercent)
+                    + (state.oppActiveCount() >= 2
+                    ? "  " + Names.tr("feurcalc.hud.target", state.oppSlot() + 1, state.oppActiveCount()) : "");
             final int hy = ty;
             texts.add(gg -> gg.drawString(font, Ui.ellipsize(font, header, w - 10), x + 5, hy + 1, 0xFFFF9AA8, false));
             Theme.bar(g, x + 5, ty + 10, w - 10, 2, state.b.hpPercent / 100F, Theme.hpColor(state.b.hpPercent), Theme.TRACK);
