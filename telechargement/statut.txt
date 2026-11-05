@@ -1,1 +1,2 @@
-Compilation réussie (essai n°4) le 2026-11-05 11:32 UTC
+Compilation réussie : Feurmod 1.0.1 (essai n°5) le 2026-11-05 11:41 UTC
+feurmod-1.0.1+cobblemon1.8.jar
