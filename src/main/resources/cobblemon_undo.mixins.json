@@ -4,7 +4,8 @@
   "package": "com.goat.cobblemonundo.mixin",
   "compatibilityLevel": "JAVA_21",
   "client": [
-    "ClientBattleMixin"
+    "ClientBattleMixin",
+    "BattleMessagePacketMixin"
   ],
   "injectors": {
     "defaultRequire": 1

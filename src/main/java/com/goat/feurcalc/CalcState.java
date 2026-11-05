@@ -33,6 +33,15 @@ public final class CalcState {
 
     public boolean inBattle;
 
+    // Combat double : quel Pokémon en jeu de chaque côté est utilisé dans le calcul
+    private int mySlot;
+    private int oppSlot;
+    private int myActiveCount;
+    private int oppActiveCount;
+    /** Ton équipe pendant le combat (avec ses PV du moment), pour "Qui envoyer ?". */
+    private List<Pokemon> battleTeam = List.of();
+    private final List<UUID> myActiveUuids = new ArrayList<>();
+
     // Synchronisation avec le combat
     @Nullable private UUID lastBattleId;
     @Nullable private UUID lastMyUuid;
@@ -59,7 +68,26 @@ public final class CalcState {
             fillFromParty();
         }
         applyPendingSets();
+        applyReveals();
         requestIfChanged();
+    }
+
+    /** Ce que le combat vient de révéler (objet, talent, attaques, Téra) corrige le set de l'adversaire. */
+    private void applyReveals() {
+        for (MonState m : new MonState[]{a, b}) {
+            if (m.isEmpty() || m.autoSet) {
+                continue; // on attend d'abord son set
+            }
+            BattleLog.Revealed r = BattleLog.forMon(m);
+            if (r == null || r.version == m.revealVersion) {
+                continue;
+            }
+            // Set choisi automatiquement : on rechoisit celui qui colle le mieux (il remet aussi ce qui est révélé)
+            if (!(m.setAuto && !m.setModified && SmogonSets.applyBest(m))) {
+                BattleLog.applyTo(m, r);
+            }
+            m.revealVersion = r.version;
+        }
     }
 
     /** Les Pokémon en attente de leur set "le plus joué" (les sets se chargent en arrière-plan). */
@@ -144,6 +172,13 @@ public final class CalcState {
             lastOppUuid = null;
             lastMySig = null;
             lastOppSig = null;
+            mySlot = 0;
+            oppSlot = 0;
+            try {
+                field.doubles = battle.getBattleFormat().getBattleType().getPokemonPerSide() >= 2;
+            } catch (Throwable ignored) {
+                // format inconnu : on ne touche à rien
+            }
         }
 
         UUID me = Minecraft.getInstance().player != null ? Minecraft.getInstance().player.getUUID() : null;
@@ -160,7 +195,17 @@ public final class CalcState {
         }
         ClientBattleSide oppSide = mySide == battle.getSide1() ? battle.getSide2() : battle.getSide1();
 
-        ClientBattlePokemon mine = firstActive(mySide, me);
+        List<ClientBattlePokemon> myActives = actives(mySide, me);
+        List<ClientBattlePokemon> oppActives = actives(oppSide, null);
+        myActiveCount = myActives.size();
+        oppActiveCount = oppActives.size();
+        myActiveUuids.clear();
+        for (ClientBattlePokemon p : myActives) {
+            myActiveUuids.add(p.getUuid());
+        }
+        battleTeam = myTeam(mySide, me);
+
+        ClientBattlePokemon mine = myActives.isEmpty() ? null : myActives.get(Math.floorMod(mySlot, myActives.size()));
         if (mine != null) {
             if (!mine.getUuid().equals(lastMyUuid)) {
                 Pokemon own = findOwn(mine, mySide);
@@ -185,7 +230,7 @@ public final class CalcState {
             }
         }
 
-        ClientBattlePokemon opp = firstActive(oppSide, null);
+        ClientBattlePokemon opp = oppActives.isEmpty() ? null : oppActives.get(Math.floorMod(oppSlot, oppActives.size()));
         if (opp != null) {
             if (!opp.getUuid().equals(lastOppUuid)) {
                 MonState fresh = MonState.fromBattle(opp);
@@ -204,22 +249,80 @@ public final class CalcState {
         }
     }
 
-    @Nullable
-    private static ClientBattlePokemon firstActive(ClientBattleSide side, @Nullable UUID preferredActor) {
-        for (int pass = 0; pass < 2; pass++) {
-            for (ClientBattleActor actor : side.getActors()) {
-                if (pass == 0 && preferredActor != null && !actor.getUuid().equals(preferredActor)) {
-                    continue;
-                }
-                for (ActiveClientBattlePokemon active : actor.getActivePokemon()) {
-                    ClientBattlePokemon bp = active.getBattlePokemon();
-                    if (bp != null) {
-                        return bp;
-                    }
+    /** Les Pokémon en jeu d'un côté (ceux de preferredActor d'abord : toi, en combat multi). */
+    private static List<ClientBattlePokemon> actives(ClientBattleSide side, @Nullable UUID preferredActor) {
+        List<ClientBattleActor> actors = new ArrayList<>(side.getActors());
+        if (preferredActor != null) {
+            actors.sort(java.util.Comparator.comparingInt(actor -> actor.getUuid().equals(preferredActor) ? 0 : 1));
+        }
+        List<ClientBattlePokemon> list = new ArrayList<>();
+        for (ClientBattleActor actor : actors) {
+            for (ActiveClientBattlePokemon active : actor.getActivePokemon()) {
+                ClientBattlePokemon bp = active.getBattlePokemon();
+                if (bp != null && !list.contains(bp)) {
+                    list.add(bp);
                 }
             }
         }
-        return null;
+        return list;
+    }
+
+    /** Ton équipe dans le combat (version du combat : PV, niveaux ajustés), sinon ton équipe tout court. */
+    private static List<Pokemon> myTeam(ClientBattleSide side, @Nullable UUID me) {
+        for (ClientBattleActor actor : side.getActors()) {
+            if (me != null && actor.getUuid().equals(me) && !actor.getPokemon().isEmpty()) {
+                List<Pokemon> list = new ArrayList<>();
+                for (Pokemon pokemon : actor.getPokemon()) {
+                    if (pokemon != null) {
+                        list.add(pokemon);
+                    }
+                }
+                return list;
+            }
+        }
+        return party();
+    }
+
+    // --- Combat double : choix du Pokémon en jeu ---
+
+    public int myActiveCount() {
+        return inBattle ? myActiveCount : 0;
+    }
+
+    public int oppActiveCount() {
+        return inBattle ? oppActiveCount : 0;
+    }
+
+    public int mySlot() {
+        return myActiveCount == 0 ? 0 : Math.floorMod(mySlot, myActiveCount);
+    }
+
+    public int oppSlot() {
+        return oppActiveCount == 0 ? 0 : Math.floorMod(oppSlot, oppActiveCount);
+    }
+
+    /** Passe à l'autre Pokémon adverse en jeu (combat double). */
+    public void cycleOppSlot() {
+        oppSlot = oppSlot() + 1;
+        lastOppUuid = null;
+        syncFromBattle();
+    }
+
+    /** Passe à ton autre Pokémon en jeu (combat double). */
+    public void cycleMySlot() {
+        mySlot = mySlot() + 1;
+        lastMyUuid = null;
+        syncFromBattle();
+    }
+
+    /** Ton équipe pour "Qui envoyer ?" : celle du combat si tu es en combat, sinon celle de ton PC d'équipe. */
+    public List<Pokemon> team() {
+        return inBattle && !battleTeam.isEmpty() ? battleTeam : party();
+    }
+
+    /** Ce Pokémon est-il déjà en jeu (combat) ? */
+    public boolean isActive(@Nullable UUID uuid) {
+        return inBattle && uuid != null && myActiveUuids.contains(uuid);
     }
 
     /** Ton Pokémon avec toutes ses données : d'abord la version du combat (niveaux ajustés), sinon l'équipe. */

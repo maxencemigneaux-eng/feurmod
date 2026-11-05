@@ -293,5 +293,17 @@
   "feurinfo.blocktag.minecraft.water": "Eau",
   "feurinfo.dimension.minecraft.overworld": "Overworld",
   "feurinfo.dimension.minecraft.the_nether": "Nether",
-  "feurinfo.dimension.minecraft.the_end": "End"
+  "feurinfo.dimension.minecraft.the_end": "End",
+  "feurinfo.tab.weak": "Faiblesses",
+  "feurinfo.weak.title": "Dégâts reçus selon le type de l'attaque",
+  "feurinfo.weak.x4": "Très faible",
+  "feurinfo.weak.x2": "Faible",
+  "feurinfo.weak.x1": "Neutre",
+  "feurinfo.weak.half": "Résiste",
+  "feurinfo.weak.quarter": "Résiste bien",
+  "feurinfo.weak.immune": "Immunisé",
+  "feurinfo.weak.abilities": "Ce que ses talents changent",
+  "feurinfo.weak.no_ability": "Ses talents ne changent rien à ces dégâts.",
+  "feurinfo.open_calc": "Feurcalc ⚔",
+  "feurinfo.open_calc.tip": "Ouvrir le calculateur de dégâts avec ce Pokémon en face (avec son set le plus joué)"
 }

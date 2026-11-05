@@ -56,6 +56,18 @@ public final class MonState {
     public boolean setModified;
     /** Appliquer le set le plus joué dès que les sets sont chargés. */
     public boolean autoSet;
+    /** Le set actuel a été choisi automatiquement (pas par toi) : il peut être rechoisi selon ce que le combat révèle. */
+    public boolean setAuto;
+
+    // Ce que le combat a révélé (objet, talent, attaques, Téra) : null = rien de révélé
+    @Nullable public String revealedItem;
+    @Nullable public String revealedAbility;
+    @Nullable public String revealedTera;
+    public final Set<String> revealedMoves = new HashSet<>();
+    /** Objet utilisé ou perdu pendant le combat ("" = aucun). */
+    public String lostItem = "";
+    /** Version des infos révélées déjà appliquée (voir BattleLog). */
+    public int revealVersion;
 
     public static final String SAVED = "@saved";
 
@@ -97,6 +109,25 @@ public final class MonState {
         setLabel = o.setLabel;
         setModified = o.setModified;
         autoSet = o.autoSet;
+        setAuto = o.setAuto;
+        revealedItem = o.revealedItem;
+        revealedAbility = o.revealedAbility;
+        revealedTera = o.revealedTera;
+        if (revealedMoves != o.revealedMoves) {
+            revealedMoves.clear();
+            revealedMoves.addAll(o.revealedMoves);
+        }
+        lostItem = o.lostItem;
+        revealVersion = o.revealVersion;
+    }
+
+    /** L'objet affiché a été vu pendant le combat. */
+    public boolean itemRevealed() {
+        return revealedItem != null && revealedItem.equals(item);
+    }
+
+    public boolean abilityRevealed() {
+        return revealedAbility != null && revealedAbility.equals(ability);
     }
 
     public int evTotal() {
@@ -253,6 +284,7 @@ public final class MonState {
         setLabel = "";
         setModified = false;
         autoSet = false;
+        setAuto = false;
     }
 
     public static String firstType(@Nullable FormData form) {

@@ -46,6 +46,7 @@ public final class CalcEngine {
     // Utilisés uniquement depuis le fil "Feurcalc-JS"
     private static Context context;
     private static Value calcFunction;
+    private static Value matchupsFunction;
 
     private CalcEngine() {
     }
@@ -96,6 +97,7 @@ public final class CalcEngine {
             context.eval(Source.create("js", source));
             Value api = context.getBindings("js").getMember("feurcalc");
             calcFunction = api.getMember("calc");
+            matchupsFunction = api.getMember("matchups");
 
             JsonObject lists = JsonParser.parseString(api.getMember("lists").execute().asString()).getAsJsonObject();
             knownItems = toSet(lists.getAsJsonArray("items"));
@@ -123,14 +125,24 @@ public final class CalcEngine {
 
     /** Calcule en arrière-plan. Le résultat est le JSON renvoyé par feurcalc.calc (ou {"error": ...}). */
     public static CompletableFuture<JsonObject> calculate(String requestJson) {
+        return call(() -> calcFunction, requestJson);
+    }
+
+    /** "Qui envoyer ?" : les duels de toute ton équipe contre l'adversaire (feurcalc.matchups). */
+    public static CompletableFuture<JsonObject> matchups(String requestJson) {
+        return call(() -> matchupsFunction, requestJson);
+    }
+
+    private static CompletableFuture<JsonObject> call(java.util.function.Supplier<Value> function, String requestJson) {
         warmUp();
         return CompletableFuture.supplyAsync(() -> {
-            if (status != Status.READY || calcFunction == null) {
+            Value fn = function.get();
+            if (status != Status.READY || fn == null) {
                 JsonObject err = new JsonObject();
                 err.addProperty("error", status == Status.FAILED ? error : "not ready");
                 return err;
             }
-            String out = calcFunction.execute(requestJson).asString();
+            String out = fn.execute(requestJson).asString();
             return JsonParser.parseString(out).getAsJsonObject();
         }, EXEC);
     }

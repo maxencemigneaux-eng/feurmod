@@ -169,18 +169,21 @@ public final class SmogonSets {
     /**
      * Le set "le plus joué" : le set d'usage du format où ce Pokémon est le plus utilisé
      * (en évitant les objets qui n'existent pas dans Cobblemon, comme les cristaux Z), sinon le 1er set Smogon.
+     * En combat, on préfère les sets qui collent à ce que l'adversaire a déjà montré (objet, talent, attaques).
      */
     @Nullable
     public static SmogonSet best(MonState m) {
         SmogonSet best = null;
         double bestScore = -1;
         Map<String, ?> known = Names.itemsById();
+        BattleLog.Revealed revealed = BattleLog.forMon(m);
         for (SmogonSet set : forMon(m)) {
             double score = set.isUsage() ? 1 + set.count() : 0.5;
             String item = set.bestItem();
             if (!item.isEmpty() && !known.isEmpty() && !known.containsKey(item)) {
                 score *= 0.25;
             }
+            score *= compatibility(set, revealed);
             if (score > bestScore) {
                 bestScore = score;
                 best = set;
@@ -189,12 +192,37 @@ public final class SmogonSets {
         return best;
     }
 
+    /** À quel point le set colle à ce que le combat a révélé (1 = rien de révélé). */
+    private static double compatibility(SmogonSet set, @Nullable BattleLog.Revealed r) {
+        if (r == null) {
+            return 1;
+        }
+        double c = 1;
+        if (r.item != null && !r.item.isEmpty()) {
+            c *= set.items().contains(r.item) ? 4 : 0.35;
+        }
+        if (r.lostItem != null && !r.lostItem.isEmpty()) {
+            c *= set.items().contains(r.lostItem) ? 4 : 0.35;
+        }
+        if (r.ability != null) {
+            c *= r.ability.equals(set.ability()) ? 2 : 0.5;
+        }
+        for (String move : r.moves) {
+            c *= set.moves().contains(move) ? 1.8 : 0.55;
+        }
+        if (r.tera != null && !set.tera().isEmpty()) {
+            c *= r.tera.equals(set.tera()) ? 1.5 : 0.8;
+        }
+        return c;
+    }
+
     public static boolean applyBest(MonState m) {
         SmogonSet set = best(m);
         if (set == null) {
             return false;
         }
         apply(m, set);
+        m.setAuto = true;
         return true;
     }
 
@@ -219,6 +247,9 @@ public final class SmogonSets {
         m.setLabel = set.fullLabel();
         m.setModified = false;
         m.autoSet = false;
+        m.setAuto = false;
+        // Ce que le combat a montré passe avant le set (objet, talent, attaques vues, Téra)
+        BattleLog.overlay(m);
     }
 
     // =======================================================================================

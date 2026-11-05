@@ -1,7 +1,9 @@
 package com.goat.feurcalc;
 
 import com.cobblemon.mod.common.client.CobblemonClient;
+import com.cobblemon.mod.common.client.battle.ClientBattle;
 import com.cobblemon.mod.common.client.gui.battle.BattleGUI;
+import com.cobblemon.mod.common.pokemon.FormData;
 import com.cobblemon.mod.common.pokemon.Species;
 import com.mojang.blaze3d.platform.InputConstants;
 import com.mojang.brigadier.CommandDispatcher;
@@ -57,15 +59,18 @@ public final class FeurcalcClient implements ClientModInitializer {
                     openScreen(client, null);
                 }
             }
-            boolean battle;
+            ClientBattle current;
             try {
-                battle = CobblemonClient.INSTANCE.getBattle() != null;
+                current = CobblemonClient.INSTANCE.getBattle();
             } catch (Throwable t) {
-                battle = false;
+                current = null;
             }
+            BattleLog.process(current); // ce que l'adversaire a révélé (objet, talent, attaques...)
+            boolean battle = current != null;
             if (battle || client.screen instanceof FeurcalcScreen) {
                 CalcState.INSTANCE.tick();
             }
+            TeamMatchups.tick(tickCounter);
             if (++tickCounter % 200 == 0) {
                 SavedSets.saveIfNeeded();
             }
@@ -82,6 +87,22 @@ public final class FeurcalcClient implements ClientModInitializer {
 
     public static void openScreen(Minecraft client, @Nullable Screen parent) {
         client.setScreen(new FeurcalcScreen(parent));
+    }
+
+    /**
+     * Ouvre le calculateur avec ce Pokémon en face (côté adversaire), avec ton spread retenu pour lui
+     * ou, à défaut, son set le plus joué. Utilisé par /feurcalc <pokémon> et le bouton de /feurinfo.
+     */
+    public static void openWith(Minecraft client, Species species, FormData form, @Nullable Screen parent) {
+        CalcState state = CalcState.INSTANCE;
+        state.fillFromParty();
+        int level = state.a.isEmpty() ? 50 : state.a.level;
+        MonState opponent = MonState.fromForm(species, form, level);
+        if (!SavedSets.apply(opponent)) {
+            opponent.autoSet = true; // le set le plus joué, dès que les sets sont chargés
+        }
+        state.b.copyFrom(opponent);
+        openScreen(client, parent);
     }
 
     private static void registerCommand(CommandDispatcher<FabricClientCommandSource> dispatcher) {
@@ -101,15 +122,7 @@ public final class FeurcalcClient implements ClientModInitializer {
                                 return 0;
                             }
                             Minecraft client = context.getSource().getClient();
-                            client.tell(() -> {
-                                CalcState state = CalcState.INSTANCE;
-                                state.fillFromParty();
-                                int level = state.a.isEmpty() ? 50 : state.a.level;
-                                MonState opponent = MonState.fromForm(species, species.getStandardForm(), level);
-                                SavedSets.apply(opponent);
-                                state.b.copyFrom(opponent);
-                                openScreen(client, null);
-                            });
+                            client.tell(() -> openWith(client, species, species.getStandardForm(), null));
                             return 1;
                         })));
     }

@@ -35,6 +35,9 @@ Par défaut, seulement **contre un joueur**. Réglages dans `config/cobblemon_un
 - **Types**, **talents** (le caché est marqué, survol = description) et **stats de base** avec le total.
 - **Attaques** par onglet (Niveau, CT, Œufs, Tuteur, Évolution, Autres), barre de recherche dans toutes
   les catégories, survol = description.
+- Onglet **Faiblesses** : dégâts reçus selon le type de l'attaque (×4, ×2, ×1, ×½, ×¼, ×0) et ce que ses
+  talents y changent (Lévitation, Absorb'Eau, Isograisse...).
+- Bouton **Feurcalc ⚔** en haut : ouvre le calculateur avec ce Pokémon en face (avec son set le plus joué).
 - Onglet **Spawn** : où le Pokémon apparaît, forme par forme : rareté, niveaux, au sol / sous l'eau / pêche,
   **biomes**, conditions (jour/nuit, pluie, lune, hauteur, structures, Poké Snack...), groupes et alphas.
   Survol d'une carte = la liste des biomes concernés. En solo, les données viennent de ton monde
@@ -56,6 +59,14 @@ JavaScript déjà présent dans Cobblemon.
   plus joué**. Clic pour choisir un autre set (survol = détail avec les %), ◀ ▶ ou clic droit pour passer au suivant.
   Données [pkmn.github.io/smogon](https://pkmn.github.io/smogon), mises à jour à chaque compilation.
 - Les spreads que tu règles pour un adversaire sont **retenus par espèce** (`config/feurcalc_sets.json`).
+- **Le set adverse se corrige tout seul** : dès que le combat révèle son objet (Restes, Casque Brut...), son talent,
+  une attaque ou son type Téra, le calculateur le prend en compte (affiché en vert) et choisit le set Smogon qui colle.
+- **Qui envoyer ?** : bouton **Équipe** du calculateur, et automatiquement en combat quand tu ouvres le menu pour
+  changer de Pokémon. Pour chaque Pokémon de ton équipe : ce qu'il fait à l'adversaire, ce qu'il prend, qui est le
+  plus rapide, et une ★ sur le meilleur échange.
+- **Mode Double (VGC)** : bouton **Double** (activé tout seul en combat double). Les attaques qui touchent plusieurs
+  cibles font 25 % de moins, Coup d'Main et Garde-Ami de chaque côté, et un bouton **1/2** pour choisir quel
+  Pokémon en jeu est calculé.
 
 ## Télécharger le .jar
 

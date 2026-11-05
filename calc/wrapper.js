@@ -36,6 +36,7 @@ function makeSide(s) {
     spikes: Number(s.spikes) || 0,
     isTailwind: !!s.tailwind,
     isHelpingHand: !!s.helpingHand,
+    isFriendGuard: !!s.friendGuard,
     isProtected: false,
   });
 }
@@ -143,19 +144,28 @@ function summary(mon, field, side) {
   };
 }
 
-function calc(json) {
-  const q = typeof json === 'string' ? JSON.parse(json) : json;
-  const f = q.field || {};
+// Terrain commun ; en Double, les attaques qui touchent plusieurs cibles font 25 % de dégâts en moins
+function fields(f) {
   const base = {
-    gameType: 'Singles',
+    gameType: f.doubles ? 'Doubles' : 'Singles',
     weather: f.weather || undefined,
     terrain: f.terrain || undefined,
     isGravity: !!f.gravity,
   };
+  return {
+    ab: new Field(Object.assign({}, base, { attackerSide: makeSide(f.a), defenderSide: makeSide(f.b) })),
+    ba: new Field(Object.assign({}, base, { attackerSide: makeSide(f.b), defenderSide: makeSide(f.a) })),
+  };
+}
+
+function calc(json) {
+  const q = typeof json === 'string' ? JSON.parse(json) : json;
+  const f = q.field || {};
   const a = makePokemon(q.a);
   const b = makePokemon(q.b);
-  const fieldAB = new Field(Object.assign({}, base, { attackerSide: makeSide(f.a), defenderSide: makeSide(f.b) }));
-  const fieldBA = new Field(Object.assign({}, base, { attackerSide: makeSide(f.b), defenderSide: makeSide(f.a) }));
+  const fl = fields(f);
+  const fieldAB = fl.ab;
+  const fieldBA = fl.ba;
   const out = {
     a: summary(a, fieldAB, fieldAB.attackerSide),
     b: summary(b, fieldBA, fieldBA.attackerSide),
@@ -163,6 +173,44 @@ function calc(json) {
   out.a.moves = moveResults(a, b, q.a.moves, fieldAB, q.crit);
   out.b.moves = moveResults(b, a, q.b.moves, fieldBA, q.crit);
   return JSON.stringify(out);
+}
+
+// La meilleure attaque offensive d'une liste de résultats (la plus grosse fourchette haute)
+function bestOf(list) {
+  let best = null;
+  for (const r of list) {
+    if (!r.known || r.category === 'Status' || !(r.max > 0)) continue;
+    if (!best || r.maxPct > best.maxPct) best = r;
+  }
+  if (best) delete best.desc;
+  return best;
+}
+
+// "Qui envoyer ?" : pour chaque Pokémon de ton équipe, sa meilleure attaque contre l'adversaire
+// et la meilleure attaque de l'adversaire contre lui.
+function matchups(json) {
+  const q = typeof json === 'string' ? JSON.parse(json) : json;
+  const f = q.field || {};
+  const fl = fields(f);
+  const foe = makePokemon(q.foe);
+  const foeSummary = summary(foe, fl.ba, fl.ba.attackerSide);
+  const rows = [];
+  for (const t of (q.team || [])) {
+    const row = {};
+    try {
+      const mon = makePokemon(t);
+      row.mine = bestOf(moveResults(mon, foe, t.moves, fl.ab, false));
+      row.theirs = bestOf(moveResults(foe, mon, q.foe.moves, fl.ba, false));
+      const s = summary(mon, fl.ab, fl.ab.attackerSide);
+      row.speed = s.speed;
+      row.maxHP = s.maxHP;
+      row.curHP = s.curHP;
+    } catch (e) {
+      row.error = String(e && e.message || e);
+    }
+    rows.push(row);
+  }
+  return JSON.stringify({ foeSpeed: foeSummary.speed, rows });
 }
 
 function lists() {
@@ -181,4 +229,4 @@ function safe(fn) {
   };
 }
 
-globalThis.feurcalc = { calc: safe(calc), lists: safe(lists), version: '0.12.0' };
+globalThis.feurcalc = { calc: safe(calc), matchups: safe(matchups), lists: safe(lists), version: '0.12.0' };

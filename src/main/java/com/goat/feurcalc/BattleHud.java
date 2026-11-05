@@ -2,6 +2,8 @@ package com.goat.feurcalc;
 
 import com.cobblemon.mod.common.api.moves.MoveTemplate;
 import com.cobblemon.mod.common.api.types.ElementalType;
+import com.cobblemon.mod.common.client.gui.battle.BattleGUI;
+import com.cobblemon.mod.common.client.gui.battle.subscreen.BattleSwitchPokemonSelection;
 import com.goat.feurmod.ui.Theme;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
@@ -101,9 +103,29 @@ public final class BattleHud {
         String label = buttonLabel();
         texts.add(gg -> gg.drawString(font, label, bx + 7, 6, Theme.GOLD, false));
 
+        // Menu des switchs ouvert : "Qui envoyer ?" (toute ton équipe contre l'adversaire) à la place du résumé
+        List<net.minecraft.network.chat.Component> teamTip = null;
+        boolean switching = false;
+        try {
+            switching = s instanceof BattleGUI gui && gui.getCurrentActionSelection() instanceof BattleSwitchPokemonSelection;
+        } catch (Throwable ignored) {
+            // version de Cobblemon différente : pas de tableau
+        }
+        int teamW = Math.min(250, s.width - 2 * SIDE_TILES);
+        boolean showTeam = switching && hudVisible() && teamW >= 170 && state.inBattle && !state.b.isEmpty();
+        if (showTeam) {
+            TeamMatchups.want();
+            int tx = (s.width - teamW) / 2;
+            TeamPanel.Result result = TeamPanel.draw(g, font, tx, 3 + BUTTON_H + 2, teamW, mouseX, mouseY, 0xE8111720);
+            List<TeamMatchups.Row> rows = TeamMatchups.rows();
+            if (result.hovered() >= 0 && result.hovered() < rows.size()) {
+                teamTip = TeamPanel.tooltip(rows.get(result.hovered()), false);
+            }
+        }
+
         // Résumé
         int w = Math.min(190, s.width - 2 * SIDE_TILES);
-        boolean show = hudVisible() && w >= 120 && state.inBattle && !state.a.isEmpty() && !state.b.isEmpty()
+        boolean show = !showTeam && hudVisible() && w >= 120 && state.inBattle && !state.a.isEmpty() && !state.b.isEmpty()
                 && state.side(true) != null;
         if (show) {
             int x = (s.width - w) / 2;
@@ -124,6 +146,9 @@ public final class BattleHud {
             int ty = y + 3;
             String target = state.b.displayName.isEmpty() ? state.b.species.getTranslatedName().getString() : state.b.displayName;
             String header = Names.tr("feurcalc.hud.vs", target, state.b.hpPercent);
+            if (state.oppActiveCount() >= 2) {
+                header += "  " + Names.tr("feurcalc.hud.target", state.oppSlot() + 1, state.oppActiveCount());
+            }
             final int hy = ty;
             texts.add(gg -> gg.drawString(font, Ui.ellipsize(font, header, w - 10), x + 5, hy + 1, 0xFFFF9AA8, false));
             Theme.bar(g, x + 5, ty + 10, w - 10, 2, state.b.hpPercent / 100F, Theme.hpColor(state.b.hpPercent), Theme.TRACK);
@@ -186,6 +211,13 @@ public final class BattleHud {
         g.flush();
         g.pose().popPose();
 
+        if (teamTip != null && !hover) {
+            List<net.minecraft.util.FormattedCharSequence> lines = new ArrayList<>();
+            for (net.minecraft.network.chat.Component c : teamTip) {
+                lines.addAll(font.split(c, 260));
+            }
+            g.renderTooltip(font, lines, mouseX, mouseY);
+        }
         if (hover) {
             List<net.minecraft.network.chat.Component> tip = List.of(
                     net.minecraft.network.chat.Component.translatable("feurcalc.hud.button.1"),

@@ -158,5 +158,17 @@
   "feurinfo.spawn.cond.x_min": "X ≥ %s",
   "feurinfo.spawn.cond.x_max": "X ≤ %s",
   "feurinfo.spawn.cond.z_min": "Z ≥ %s",
-  "feurinfo.spawn.cond.z_max": "Z ≤ %s"
+  "feurinfo.spawn.cond.z_max": "Z ≤ %s",
+  "feurinfo.tab.weak": "Weaknesses",
+  "feurinfo.weak.title": "Damage taken by attack type",
+  "feurinfo.weak.x4": "Very weak",
+  "feurinfo.weak.x2": "Weak",
+  "feurinfo.weak.x1": "Neutral",
+  "feurinfo.weak.half": "Resists",
+  "feurinfo.weak.quarter": "Resists a lot",
+  "feurinfo.weak.immune": "Immune",
+  "feurinfo.weak.abilities": "What its abilities change",
+  "feurinfo.weak.no_ability": "Its abilities don't change this damage.",
+  "feurinfo.open_calc": "Feurcalc ⚔",
+  "feurinfo.open_calc.tip": "Open the damage calculator with this Pokémon as the opponent (with its most used set)"
 }
