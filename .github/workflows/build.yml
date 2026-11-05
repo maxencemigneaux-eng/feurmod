@@ -53,17 +53,25 @@ jobs:
           echo "Version utilisée : $V"
           echo "version=$V" >> "$GITHUB_OUTPUT"
 
+      - name: Numéro de version (1.0.1, 1.0.2... un nouveau à chaque compilation)
+        id: version
+        run: |
+          V="1.0.$(( ${{ github.run_number }} - 4 ))"
+          echo "Version du mod : $V"
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+
       - name: Compiler
         run: |
           set -o pipefail
-          gradle build --stacktrace -Pcobblemon_version="${{ steps.cobblemon.outputs.version }}" -Pcobblemon_tag="1.8" 2>&1 | tee /tmp/build.log
+          gradle build --stacktrace -Pcobblemon_version="${{ steps.cobblemon.outputs.version }}" -Pcobblemon_tag="1.8" -Pmod_version="${{ steps.version.outputs.version }}" 2>&1 | tee /tmp/build.log
 
       - name: Mettre le .jar dans le dossier "telechargement" du dépôt
         run: |
           mkdir -p telechargement
           rm -f telechargement/*.jar
           for f in build/libs/*.jar; do case "$f" in *-sources.jar) ;; *) cp "$f" telechargement/;; esac; done
-          echo "Compilation réussie (essai n°${{ github.run_number }}) le $(date -u '+%Y-%m-%d %H:%M UTC')" > telechargement/statut.txt
+          echo "Compilation réussie : Feurmod ${{ steps.version.outputs.version }} (essai n°${{ github.run_number }}) le $(date -u '+%Y-%m-%d %H:%M UTC')" > telechargement/statut.txt
+          ls telechargement/*.jar | xargs -n1 basename >> telechargement/statut.txt
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add telechargement

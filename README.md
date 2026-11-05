@@ -61,6 +61,9 @@ JavaScript déjà présent dans Cobblemon.
 
 Dossier **`telechargement/`** du dépôt → clique sur le .jar → bouton **Download raw file**.
 
+Chaque compilation a son propre numéro de version (1.0.1, 1.0.2...) : le fichier s'appelle par exemple
+`feurmod-1.0.3+cobblemon1.8.jar`. **Garde un seul Feurmod** dans le dossier `mods` (supprime l'ancien).
+
 ## Crédits
 
 Calculs de dégâts : [@smogon/calc](https://github.com/smogon/damage-calc) (licence MIT).
