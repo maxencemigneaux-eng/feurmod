@@ -114,7 +114,7 @@ public final class Theme {
      * avec {@link #field}. Le texte est centré verticalement.
      */
     public static EditBox fieldBox(Font font, int x, int y, int w, int h, Component message) {
-        int top = (h - 8) / 2;
+        int top = (h - 7) / 2; // même centrage que le texte des pastilles
         EditBox box = new EditBox(font, x + 4, y + top, Math.max(1, w - 8), h - top, message);
         box.setBordered(false);
         box.setTextColor(TEXT);

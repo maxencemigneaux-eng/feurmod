@@ -59,14 +59,27 @@ public final class FeurcalcScreen extends Screen {
     private static final int C_PLUS = 0xFFFF9A8A;
     private static final int C_MINUS = 0xFF8AB4FF;
 
-    // Colonnes du tableau des stats (relatives au bord intérieur du panneau)
-    private static final int COL_BASE_RIGHT = 60;
-    private static final int COL_IV = 64;
+    // Colonnes du tableau des stats (relatives au bord intérieur du panneau), calculées dans init()
     private static final int COL_IV_W = 22;
-    private static final int COL_EV = 89;
     private static final int COL_EV_W = 28;
-    private static final int COL_STAT_RIGHT = 148;
-    private static final int COL_BOOST = 153;
+    private int colBaseRight = 66;
+    private int colIv = 74;
+    private int colEv = 101;
+    private int colStatRight = 160;
+    private int colBoost = 168;
+    /** Boutons de boost : [−] [+1] [+] */
+    private int boostStep = 11;
+    private int boostGap = 2;
+
+    // Espacements (un peu plus serrés sur les petits écrans)
+    private static final int TOP_BAR_H = 14;
+    private int topGap = 7;
+    /** Hauteur des pastilles dans une ligne de rowH (le reste fait l'espace entre deux lignes). */
+    private int chipH = 13;
+    /** Largeur des étiquettes "Talent", "Nature"... et "Set" / "PV". */
+    private int infoLabelW = 40;
+    private int smallLabelW = 22;
+    private int bandH = 23;
 
     @Nullable private final Screen parent;
     private final CalcState state = CalcState.INSTANCE;
@@ -145,43 +158,119 @@ public final class FeurcalcScreen extends Screen {
         numberBoxes.clear();
         picker = null;
 
-        contentW = Math.min(width - 8, 560);
+        // Largeur : deux panneaux séparés par un vrai espace
+        int panelGap = width >= 520 ? 10 : 6;
+        contentW = Math.min(width - 12, 600);
         x0 = (width - contentW) / 2;
-        topY = 4;
-        panelY = topY + 17;
-        panelW = (contentW - 6) / 2;
-        int maxPanelH = height - panelY - 4;
-        rowH = Mth.clamp((maxPanelH - 62) / 17, 10, 15);
-        panelH = Math.min(maxPanelH, 62 + 17 * rowH);
+        panelW = (contentW - panelGap) / 2;
+        int pad = panelW >= 260 ? 7 : 5;
+
+        // Hauteur : version aérée si l'écran est assez grand, sinon version compacte
+        boolean roomy = true;
+        int fixed = 91; // tout ce qui n'est pas une ligne de rowH (marges, en-tête, Set, PV, séparateurs)
+        topGap = 7;
+        int avail = height - 8 - TOP_BAR_H - topGap;
+        rowH = (avail - fixed) / 17;
+        if (rowH < 12) {
+            roomy = false;
+            fixed = 68;
+            topGap = 4;
+            avail = height - 4 - TOP_BAR_H - topGap;
+            rowH = (avail - fixed) / 17;
+        }
+        rowH = Mth.clamp(rowH, 10, 16);
+        chipH = rowH - (rowH >= 13 ? 3 : 2);
+        panelH = fixed + 17 * rowH;
+
+        // Centré verticalement
+        int total = TOP_BAR_H + topGap + panelH;
+        topY = Math.max(2, (height - total) / 2);
+        panelY = topY + TOP_BAR_H + topGap;
+
+        // Largeur des étiquettes : la plus longue + un espace
+        infoLabelW = 0;
+        for (String key : new String[]{"feurcalc.ability", "feurcalc.item", "feurcalc.nature", "feurcalc.tera",
+                "feurcalc.status", "feurcalc.speed"}) {
+            infoLabelW = Math.max(infoLabelW, font.width(Names.tr(key)));
+        }
+        infoLabelW += 6;
+        smallLabelW = Math.max(font.width(Names.tr("feurcalc.set")), font.width(Names.tr("feurcalc.stat.hp"))) + 6;
+
+        int sectionGap = roomy ? 8 : 5;
+        bandH = roomy ? 23 : 19;
+        for (int s = 0; s < 2; s++) {
+            Layout l = layouts[s];
+            l.panelX = x0 + s * (panelW + panelGap);
+            l.x = l.panelX + pad;
+            l.w = panelW - 2 * pad;
+            l.headerY = panelY + (roomy ? 5 : 4);
+            l.setY = l.headerY + (roomy ? 24 : 18);
+            l.hpY = l.setY + (roomy ? 17 : 14);
+            l.infoY = l.hpY + (roomy ? 18 : 15);
+            l.movesY = l.infoY + 3 * rowH + sectionGap;
+            l.statsY = l.movesY + 5 * rowH + sectionGap;
+            l.sideY = l.statsY + 7 * rowH + sectionGap;
+        }
+        computeStatColumns(layouts[0].w);
 
         for (int s = 0; s < 2; s++) {
             Layout l = layouts[s];
-            l.panelX = x0 + s * (panelW + 6);
-            l.x = l.panelX + 4;
-            l.w = panelW - 8;
-            l.headerY = panelY + 4;
-            l.setY = l.headerY + 15;
-            l.hpY = l.setY + 13;
-            l.infoY = l.hpY + 13;
-            l.movesY = l.infoY + 3 * rowH + 3;
-            l.statsY = l.movesY + 5 * rowH + 3;
-            l.sideY = l.statsY + 7 * rowH + 3;
-
             final int side = s;
             levelBoxes[s] = numberBox(side, l.x + l.w - 26, l.headerY + 1, 26, 12,
                     () -> mon(side).level, v -> mon(side).level = v, 1, 100, 1, false);
-            hpBoxes[s] = numberBox(side, l.x + l.w - 80, l.hpY, 26, 11,
+            hpBoxes[s] = numberBox(side, hpBoxX(l), l.hpY, 26, 12,
                     () -> mon(side).hpPercent, v -> mon(side).hpPercent = v, 0, 100, 5, false);
             for (int i = 0; i < 6; i++) {
                 final int stat = i;
                 int y = statRowY(l, i);
-                ivBoxes[s][i] = numberBox(side, l.x + COL_IV, y, COL_IV_W, rowH - 1,
+                ivBoxes[s][i] = numberBox(side, l.x + colIv, y, COL_IV_W, chipH,
                         () -> mon(side).ivs[stat], v -> mon(side).ivs[stat] = v, 0, 31, 1, true);
-                evBoxes[s][i] = numberBox(side, l.x + COL_EV, y, COL_EV_W, rowH - 1,
+                evBoxes[s][i] = numberBox(side, l.x + colEv, y, COL_EV_W, chipH,
                         () -> mon(side).evs[stat], v -> mon(side).evs[stat] = v, 0, 252, 4, true);
             }
         }
         syncBoxes(true);
+    }
+
+    /** Colonnes du tableau des stats : le plus d'espace possible entre elles sans dépasser du panneau. */
+    private void computeStatColumns(int lw) {
+        int labelW = 0;
+        for (int i = 0; i < 6; i++) {
+            labelW = Math.max(labelW, font.width(Names.statLabel(i)));
+        }
+        labelW += font.width("−");
+        int w3 = font.width("255");
+        int w4 = font.width("1234");
+        int evLeft = 8 + font.width("510"); // EV restants, tout à droite
+        // 1er essai : on garde la place des EV restants ; sinon on s'en passe
+        for (int pass = 0; pass < 2; pass++) {
+            for (int gap = 11; gap >= 2; gap--) {
+                boostStep = gap >= 5 ? 11 : 10;
+                boostGap = gap >= 5 ? 2 : 1;
+                colBaseRight = labelW + Math.max(3, gap - 2) + w3;
+                colIv = colBaseRight + gap;
+                colEv = colIv + COL_IV_W + Math.max(2, gap - 3);
+                colStatRight = colEv + COL_EV_W + gap + w4;
+                colBoost = colStatRight + gap;
+                if (colBoost + boostWidth() + (pass == 0 ? evLeft : 0) <= lw) {
+                    return;
+                }
+            }
+        }
+    }
+
+    private int boostWidth() {
+        return 2 * boostStep + 20 + 2 * boostGap;
+    }
+
+    /** Position X de la case "PV %". */
+    private int hpBoxX(Layout l) {
+        return l.x + l.w - font.width("999/999") - 10 - font.width("%") - 3 - 26;
+    }
+
+    /** Y du texte centré dans une pastille de hauteur h. */
+    private static int textY(int y, int h) {
+        return y + (h - 7) / 2;
     }
 
     private int statRowY(Layout l, int stat) {
@@ -367,7 +456,7 @@ public final class FeurcalcScreen extends Screen {
             int accent = s == 0 ? Theme.ACCENT : Theme.ACCENT_RED;
             Theme.panel(g, l.panelX, panelY, panelW, panelH, 4, Theme.PANEL, Theme.mix(Theme.PANEL_BORDER, accent, 0.35F));
             // Bandeau du haut, teinté bleu (toi) ou rouge (l'adversaire)
-            Theme.rect(g, l.panelX + 1, panelY + 1, panelW - 2, 18, 3, Theme.mix(Theme.HEADER, accent, 0.16F));
+            Theme.rect(g, l.panelX + 1, panelY + 1, panelW - 2, bandH, 3, Theme.mix(Theme.HEADER, accent, 0.16F));
             g.fill(l.panelX + 4, panelY + 1, l.panelX + panelW - 4, panelY + 2, Theme.withAlpha(accent, 0xC0));
             if (mon(s).isEmpty()) {
                 continue;
@@ -375,15 +464,17 @@ public final class FeurcalcScreen extends Screen {
             // Cartes des attaques, bandes du tableau des stats
             for (int i = 0; i < 4; i++) {
                 int y = l.movesY + rowH * (i + 1);
-                Theme.rect(g, l.x - 2, y, l.w + 4, rowH - 1, 2, Theme.CARD_ALT);
+                Theme.rect(g, l.x - 3, y, l.w + 6, chipH, 2, Theme.CARD_ALT);
             }
             for (int i = 0; i < 6; i += 2) {
                 int y = statRowY(l, i);
-                Theme.rect(g, l.x - 2, y - 1, l.w + 4, rowH, 2, Theme.CARD_ALT);
+                Theme.rect(g, l.x - 3, y - 1, l.w + 6, chipH + 2, 2, Theme.CARD_ALT);
             }
-            Theme.divider(g, l.x, l.movesY - 2, l.w);
-            Theme.divider(g, l.x, l.statsY - 2, l.w);
-            Theme.divider(g, l.x, l.sideY - 2, l.w);
+            // Séparateurs au milieu de l'espace entre deux blocs
+            int half = (l.statsY - (l.movesY + 5 * rowH)) / 2;
+            Theme.divider(g, l.x, l.movesY - half - 1, l.w);
+            Theme.divider(g, l.x, l.statsY - half - 1, l.w);
+            Theme.divider(g, l.x, l.sideY - half - 1, l.w);
         }
         // Fonds des cases de saisie (niveau, PV, IV, EV)
         for (NumberBox nb : numberBoxes) {
@@ -463,12 +554,12 @@ public final class FeurcalcScreen extends Screen {
         if (clickable && !on && h >= 8) {
             g.fill(x + 2, y, x + w - 2, y + 1, 0x12FFFFFF); // petit relief
         }
-        String s = Ui.ellipsize(font, label, w - 4);
-        int ty = y + (h - 8) / 2;
+        String s = Ui.ellipsize(font, label, w - (center ? 4 : 8));
+        int ty = textY(y, h);
         if (center) {
             textCenter(s, x + w / 2, ty, color);
         } else {
-            text(s, x + 3, ty, color);
+            text(s, x + 4, ty, color);
         }
         if (left != null || right != null) {
             hits.add(new Hit(x, y, w, h, left != null ? left : () -> { }, right));
@@ -493,42 +584,44 @@ public final class FeurcalcScreen extends Screen {
 
     private void drawTopBar(GuiGraphics g, int mx, int my) {
         int y = topY;
-        int h = 13;
-        text("Feurcalc", x0, y + 3, C_TITLE);
-        int x = x0 + font.width("Feurcalc") + 8;
+        int h = TOP_BAR_H;
+        int gap = 5;
+        text("Feurcalc", x0 + 2, textY(y, h), C_TITLE);
+        int x = x0 + 2 + font.width("Feurcalc") + 10;
         FieldState f = state.field;
 
         String weather = Names.tr("feurcalc.field.weather", Names.weatherName(f.weather));
-        int w = font.width(weather) + 8;
+        int w = font.width(weather) + 12;
         chip(g, x, y, w, h, weather, C_TEXT, !f.weather.isEmpty(), true, mx, my,
                 () -> f.weather = cycle(Names.WEATHERS, f.weather, 1), () -> f.weather = cycle(Names.WEATHERS, f.weather, -1),
                 List.of(tr("feurcalc.tip.cycle")));
-        x += w + 3;
+        x += w + gap;
 
         String terrain = Names.tr("feurcalc.field.terrain", Names.terrainName(f.terrain));
-        w = font.width(terrain) + 8;
+        w = font.width(terrain) + 12;
         chip(g, x, y, w, h, terrain, C_TEXT, !f.terrain.isEmpty(), true, mx, my,
                 () -> f.terrain = cycle(Names.TERRAINS, f.terrain, 1), () -> f.terrain = cycle(Names.TERRAINS, f.terrain, -1),
                 List.of(tr("feurcalc.tip.cycle")));
-        x += w + 3;
+        x += w + gap;
 
         String gravity = Names.tr("feurcalc.field.gravity");
-        w = font.width(gravity) + 8;
+        w = font.width(gravity) + 12;
         chip(g, x, y, w, h, gravity, C_TEXT, f.gravity, true, mx, my, () -> f.gravity = !f.gravity, null, null);
-        x += w + 3;
+        x += w + gap;
 
         String crit = Names.tr("feurcalc.field.crit");
-        w = font.width(crit) + 8;
+        w = font.width(crit) + 12;
         chip(g, x, y, w, h, crit, C_TEXT, f.crit, true, mx, my, () -> f.crit = !f.crit, null,
                 List.of(tr("feurcalc.tip.crit")));
-        x += w + 3;
+        x += w + gap;
 
-        chip(g, x, y, 14, h, "⇄", C_TEXT, false, true, mx, my, state::swapSides, null, List.of(tr("feurcalc.tip.swap")));
-        x += 17;
-        chip(g, x, y, 12, h, "?", C_TITLE, false, true, mx, my, null, null, List.of(
+        x += 4; // un peu plus d'air avant ⇄ et ?
+        chip(g, x, y, 16, h, "⇄", C_TEXT, false, true, mx, my, state::swapSides, null, List.of(tr("feurcalc.tip.swap")));
+        x += 16 + gap;
+        chip(g, x, y, 14, h, "?", C_TITLE, false, true, mx, my, null, null, List.of(
                 tr("feurcalc.help.1"), tr("feurcalc.help.2"), tr("feurcalc.help.3"), tr("feurcalc.help.4"), tr("feurcalc.help.5"),
                 tr("feurcalc.help.6")));
-        x += 15;
+        x += 14 + gap;
 
         // État du calculateur à droite
         String status;
@@ -556,8 +649,8 @@ public final class FeurcalcScreen extends Screen {
         }
         int right = x0 + contentW;
         int sw = font.width(status);
-        if (!status.isEmpty() && right - sw > x + 4) {
-            textRight(status, right, y + 3, color);
+        if (!status.isEmpty() && right - sw > x + 6) {
+            textRight(status, right - 2, textY(y, h), color);
             if (tip != null) {
                 tipArea(mx, my, right - sw, y, sw, h, tip);
             }
@@ -596,17 +689,17 @@ public final class FeurcalcScreen extends Screen {
     private void drawEmptyPanel(GuiGraphics g, int s, int mx, int my) {
         Layout l = layouts[s];
         String label = Names.tr(s == 0 ? "feurcalc.side.a" : "feurcalc.side.b");
-        text(label, l.x, l.headerY + 2, s == 0 ? 0xFF8AC4FF : 0xFFFF9A9A);
+        text(label, l.x, textY(l.headerY, 14), s == 0 ? 0xFF8AC4FF : 0xFFFF9A9A);
         String choose = Names.tr("feurcalc.choose_pokemon");
-        int w = font.width(choose) + 12;
+        int w = font.width(choose) + 20;
         int x = l.panelX + (panelW - w) / 2;
-        int y = panelY + panelH / 2 - 8;
-        chip(g, x, y, w, 16, choose, C_TITLE, false, true, mx, my, () -> openSpeciesPicker(s, x, y + 16), null, null);
+        int y = panelY + panelH / 2 - 12;
+        chip(g, x, y, w, 18, choose, C_TITLE, false, true, mx, my, () -> openSpeciesPicker(s, x, y + 18), null, null);
         if (s == 0 && !CalcState.party().isEmpty()) {
             String party = Names.tr("feurcalc.from_party");
-            int pw = font.width(party) + 12;
+            int pw = font.width(party) + 20;
             int px = l.panelX + (panelW - pw) / 2;
-            chip(g, px, y + 20, pw, 14, party, C_TEXT, false, true, mx, my, () -> state.cycleParty(1), null, null);
+            chip(g, px, y + 24, pw, 15, party, C_TEXT, false, true, mx, my, () -> state.cycleParty(1), null, null);
         }
     }
 
@@ -615,15 +708,15 @@ public final class FeurcalcScreen extends Screen {
         int h = 14;
         // Partie droite : flèches de l'équipe (A) + niveau
         int right = l.x + l.w;
-        textRight(Names.tr("feurcalc.level"), right - 29, y + 3, C_LABEL);
-        int arrowsRight = right - 31 - font.width(Names.tr("feurcalc.level"));
-        int nameMax = arrowsRight - l.x - 30;
+        textRight(Names.tr("feurcalc.level"), right - 31, textY(y + 1, 12), C_LABEL);
+        int arrowsRight = right - 31 - font.width(Names.tr("feurcalc.level")) - 8;
+        int nameMax = arrowsRight - l.x - 36;
         if (s == 0 && !CalcState.party().isEmpty()) {
-            chip(g, arrowsRight - 24, y + 1, 11, 12, "◀", C_TEXT, false, true, mx, my, () -> state.cycleParty(-1), null,
+            chip(g, arrowsRight - 26, y + 1, 12, 12, "◀", C_TEXT, false, true, mx, my, () -> state.cycleParty(-1), null,
                     List.of(tr("feurcalc.tip.party")));
-            chip(g, arrowsRight - 12, y + 1, 11, 12, "▶", C_TEXT, false, true, mx, my, () -> state.cycleParty(1), null,
+            chip(g, arrowsRight - 12, y + 1, 12, 12, "▶", C_TEXT, false, true, mx, my, () -> state.cycleParty(1), null,
                     List.of(tr("feurcalc.tip.party")));
-            nameMax -= 26;
+            nameMax -= 32;
         }
 
         // Nom du Pokémon (clic : en choisir un autre ; clic droit : valeurs par défaut)
@@ -632,7 +725,7 @@ public final class FeurcalcScreen extends Screen {
         if (!formName.isEmpty()) {
             name += " (" + formName + ")";
         }
-        int nameW = Math.min(font.width(name) + 8, Math.max(40, nameMax));
+        int nameW = Math.min(font.width(name) + 12, Math.max(40, nameMax));
         List<Component> tip = new ArrayList<>();
         tip.add(Component.literal(m.species.getTranslatedName().getString()).withStyle(ChatFormatting.YELLOW));
         tip.add(tr(switch (m.source) {
@@ -653,7 +746,7 @@ public final class FeurcalcScreen extends Screen {
                 }, tip);
 
         // Types (ou type Téra si activé)
-        int tx = l.x + nameW + 3;
+        int tx = l.x + nameW + 6;
         List<String> types = m.tera && !m.teraType.isEmpty() ? List.of(m.teraType) : Names.formTypes(m.form);
         for (String type : types) {
             ElementalType et = Names.type(type);
@@ -662,14 +755,14 @@ public final class FeurcalcScreen extends Screen {
                 Theme.rect(g, ix, y + 1, 12, 12, 2, Theme.typeBackground(et.getHue()));
                 iconOps.add(gg -> Ui.typeIcon(gg, et, ix + 1, y + 2, 10));
                 tipArea(mx, my, ix, y + 1, 12, 12, List.of(Component.literal(Names.typeName(type))));
-                tx += 14;
+                tx += 15;
             } else if (type.equalsIgnoreCase("stellar")) {
-                text("✦", ix, y + 3, 0xFFFFE08A);
-                tx += 9;
+                text("✦", ix, textY(y, h), 0xFFFFE08A);
+                tx += 10;
             }
         }
         if (m.tera) {
-            text(Names.tr("feurcalc.tera.short"), tx + 1, y + 3, 0xFFFFE08A);
+            text(Names.tr("feurcalc.tera.short"), tx + 2, textY(y, h), 0xFFFFE08A);
         }
     }
 
@@ -691,10 +784,10 @@ public final class FeurcalcScreen extends Screen {
 
     private void drawSet(GuiGraphics g, int s, Layout l, MonState m, int mx, int my) {
         int y = l.setY;
-        int h = 11;
-        text(Names.tr("feurcalc.set"), l.x, y + 2, C_LABEL);
-        int x = l.x + 18;
-        int w = l.w - 18 - 25;
+        int h = 12;
+        text(Names.tr("feurcalc.set"), l.x, textY(y, h), C_LABEL);
+        int x = l.x + smallLabelW;
+        int w = l.w - smallLabelW - 2 * 13 - 4;
         List<SmogonSets.SmogonSet> sets = SmogonSets.forMon(m);
         SmogonSets.SmogonSet current = null;
         int index = -1;
@@ -742,20 +835,20 @@ public final class FeurcalcScreen extends Screen {
         if (!SmogonSets.date().isEmpty()) {
             tip.add(tr("feurcalc.tip.set_data", SmogonSets.date(), sets.size()).withStyle(ChatFormatting.DARK_GRAY));
         }
-        int counterW = counter.isEmpty() ? 0 : font.width(counter) + 4;
+        int counterW = counter.isEmpty() ? 0 : font.width(counter) + 6;
         if (counterW >= w / 3) {
             counterW = 0;
         }
-        label = Ui.ellipsize(font, label, w - 4 - counterW);
+        label = Ui.ellipsize(font, label, w - 8 - counterW);
         chip(g, x, y, w, h, label, color, false, false, mx, my, () -> openSetPicker(s, x, y + h), () -> stepSet(s, 1), tip);
         if (counterW > 0) {
             // petit compteur "3/12" à droite de la pastille
             g.fill(x + w - counterW, y, x + w, y + h, 0x30000000);
-            textRight(counter, x + w - 2, y + 2, C_DIM);
+            textRight(counter, x + w - 3, textY(y, h), C_DIM);
         }
-        chip(g, x + w + 2, y, 11, h, "◀", sets.isEmpty() ? C_DIM : C_TEXT, false, true, mx, my,
+        chip(g, x + w + 4, y, 12, h, "◀", sets.isEmpty() ? C_DIM : C_TEXT, false, true, mx, my,
                 sets.isEmpty() ? null : () -> stepSet(s, -1), null, List.of(tr("feurcalc.tip.set_prev")));
-        chip(g, x + w + 14, y, 11, h, "▶", sets.isEmpty() ? C_DIM : C_TEXT, false, true, mx, my,
+        chip(g, x + w + 18, y, 12, h, "▶", sets.isEmpty() ? C_DIM : C_TEXT, false, true, mx, my,
                 sets.isEmpty() ? null : () -> stepSet(s, 1), null, List.of(tr("feurcalc.tip.set_next")));
     }
 
@@ -831,30 +924,33 @@ public final class FeurcalcScreen extends Screen {
 
     private void drawHp(GuiGraphics g, int s, Layout l, MonState m, int mx, int my) {
         int y = l.hpY;
-        text(Names.tr("feurcalc.stat.hp"), l.x, y + 2, C_LABEL);
-        int barX = l.x + 18;
-        int barRight = l.x + l.w - 84;
+        int h = 12;
+        text(Names.tr("feurcalc.stat.hp"), l.x, textY(y, h), C_LABEL);
+        int barX = l.x + smallLabelW;
+        int boxX = hpBoxX(l);
+        int barRight = boxX - 7;
         int barW = Math.max(10, barRight - barX);
-        Theme.bar(g, barX, y + 3, barW, 5, Mth.clamp(m.hpPercent, 0, 100) / 100F, Theme.hpColor(m.hpPercent), Theme.TRACK);
-        text("%", l.x + l.w - 52, y + 2, C_LABEL);
+        Theme.bar(g, barX, y + (h - 5) / 2, barW, 5, Mth.clamp(m.hpPercent, 0, 100) / 100F, Theme.hpColor(m.hpPercent), Theme.TRACK);
+        text("%", boxX + 26 + 3, textY(y, h), C_LABEL);
         JsonObject summary = state.side(s == 0);
         if (summary != null) {
             String hp = CalcState.getInt(summary, "curHP", 0) + "/" + CalcState.getInt(summary, "maxHP", 0);
-            textRight(hp, l.x + l.w, y + 2, C_TEXT);
+            textRight(hp, l.x + l.w, textY(y, h), C_TEXT);
         }
-        tipArea(mx, my, barX, y, barW, 11, List.of(tr("feurcalc.tip.hp")));
+        tipArea(mx, my, barX, y, barW, h, List.of(tr("feurcalc.tip.hp")));
     }
 
     private void drawInfo(GuiGraphics g, int s, Layout l, MonState m, int mx, int my) {
-        int colW = (l.w - 4) / 2;
-        int labelW = 34;
+        int colGap = 10;
+        int colW = (l.w - colGap) / 2;
+        int labelW = infoLabelW;
         int left = l.x;
-        int rightCol = l.x + colW + 4;
-        int h = rowH - 1;
+        int rightCol = l.x + colW + colGap;
+        int h = chipH;
 
         // Ligne 1 : talent | objet
         final int y = l.infoY;
-        text(Names.tr("feurcalc.ability"), left, y + (h - 8) / 2, C_LABEL);
+        text(Names.tr("feurcalc.ability"), left, textY(y, h), C_LABEL);
         List<Component> abilityTip = new ArrayList<>();
         String desc = Names.abilityDescription(m.ability);
         if (!desc.isEmpty()) {
@@ -864,14 +960,14 @@ public final class FeurcalcScreen extends Screen {
         chip(g, left + labelW, y, colW - labelW, h, Names.abilityName(m.ability), C_TEXT, false, false, mx, my,
                 () -> openAbilityPicker(s, left + labelW, y + h), () -> cycleAbility(s), abilityTip);
 
-        text(Names.tr("feurcalc.item"), rightCol, y + (h - 8) / 2, C_LABEL);
+        text(Names.tr("feurcalc.item"), rightCol, textY(y, h), C_LABEL);
         ItemStack stack = Names.itemStack(m.item);
         int itemX = rightCol + labelW;
         int iconSpace = stack.isEmpty() ? 0 : 10;
         if (!stack.isEmpty()) {
             iconOps.add(gg -> {
                 gg.pose().pushPose();
-                gg.pose().translate(itemX + 1, y + (h - 9) / 2F, 0);
+                gg.pose().translate(itemX + 3, y + (h - 9) / 2F, 0);
                 gg.pose().scale(0.5625F, 0.5625F, 1F);
                 gg.renderItem(stack, 0, 0);
                 gg.pose().popPose();
@@ -886,35 +982,35 @@ public final class FeurcalcScreen extends Screen {
 
         // Ligne 2 : nature | Téra
         final int y2 = l.infoY + rowH;
-        text(Names.tr("feurcalc.nature"), left, y2 + (h - 8) / 2, C_LABEL);
+        text(Names.tr("feurcalc.nature"), left, textY(y2, h), C_LABEL);
         Nature nature = Names.nature(m.nature);
         chip(g, left + labelW, y2, colW - labelW, h, Names.natureName(m.nature), C_TEXT, false, false, mx, my,
                 () -> openNaturePicker(s, left + labelW, y2 + h), null,
                 List.of(Component.literal(Names.natureEffect(nature)), tr("feurcalc.tip.nature")));
 
-        text(Names.tr("feurcalc.tera"), rightCol, y2 + (h - 8) / 2, C_LABEL);
-        int toggleW = 22;
-        int teraW = colW - labelW - toggleW - 2;
+        text(Names.tr("feurcalc.tera"), rightCol, textY(y2, h), C_LABEL);
+        int toggleW = 24;
+        int teraW = colW - labelW - toggleW - 4;
         int teraX = rightCol + labelW;
         ElementalType teraIcon = Names.type(m.teraType);
         if (teraIcon != null) {
             final int iy = y2;
-            iconOps.add(gg -> Ui.typeIcon(gg, teraIcon, teraX + 2, iy + (h - 9) / 2, 9));
+            iconOps.add(gg -> Ui.typeIcon(gg, teraIcon, teraX + 3, iy + (h - 9) / 2, 9));
         }
         chip(g, teraX, y2, teraW, h, (teraIcon != null ? "   " : "") + Names.typeName(m.teraType), C_TEXT, false, false,
                 mx, my, () -> openTeraPicker(s, teraX, y2 + h), null, List.of(tr("feurcalc.tip.tera_type")));
         final int ty = y2;
-        chip(g, teraX + teraW + 2, ty, toggleW, h, m.tera ? "ON" : "off", m.tera ? C_TEXT : C_DIM, m.tera, true, mx, my,
+        chip(g, teraX + teraW + 4, ty, toggleW, h, m.tera ? "ON" : "off", m.tera ? C_TEXT : C_DIM, m.tera, true, mx, my,
                 () -> m.tera = !m.tera, null, List.of(tr("feurcalc.tip.tera")));
 
         // Ligne 3 : statut | vitesse
         final int y3 = l.infoY + 2 * rowH;
-        text(Names.tr("feurcalc.status"), left, y3 + (h - 8) / 2, C_LABEL);
+        text(Names.tr("feurcalc.status"), left, textY(y3, h), C_LABEL);
         chip(g, left + labelW, y3, colW - labelW, h, Names.statusName(m.status), m.status.isEmpty() ? C_DIM : 0xFFFFB070,
                 false, false, mx, my, () -> m.status = cycle(Names.STATUSES, m.status, 1),
                 () -> m.status = cycle(Names.STATUSES, m.status, -1), List.of(tr("feurcalc.tip.cycle")));
 
-        text(Names.tr("feurcalc.speed"), rightCol, y3 + (h - 8) / 2, C_LABEL);
+        text(Names.tr("feurcalc.speed"), rightCol, textY(y3, h), C_LABEL);
         JsonObject mine = state.side(s == 0);
         JsonObject theirs = state.side(s != 0);
         if (mine != null && theirs != null) {
@@ -937,7 +1033,7 @@ public final class FeurcalcScreen extends Screen {
                 key = "feurcalc.speed.tie";
             }
             String label = sp + arrow;
-            text(label, rightCol + labelW + 3, y3 + (h - 8) / 2, color);
+            text(label, rightCol + labelW + 4, textY(y3, h), color);
             tipArea(mx, my, rightCol, y3, colW, h, List.of(tr(key, sp, other), tr("feurcalc.tip.speed")));
         }
     }
@@ -945,25 +1041,29 @@ public final class FeurcalcScreen extends Screen {
     private void drawMoves(GuiGraphics g, int s, Layout l, MonState m, int mx, int my) {
         int y = l.movesY;
         int koRight = l.x + l.w;
-        int dmgRight = koRight - 50;
+        int koColW = 56;
+        int dmgRight = koRight - koColW;
+        int barW = 64;
+        int barX = dmgRight - barW;
+        int hy = textY(y, chipH) + (rowH - chipH) / 2;
         MonState target = mon(1 - s);
         String vs = Names.tr("feurcalc.moves.vs", target.isEmpty() ? "?" : shortName(target));
-        text(Ui.ellipsize(font, vs, dmgRight - 66 - l.x), l.x, y + (rowH - 8) / 2, C_LABEL);
-        textRight(Names.tr("feurcalc.moves.damage"), dmgRight, y + (rowH - 8) / 2, C_LABEL);
-        textRight(Names.tr("feurcalc.moves.ko"), koRight, y + (rowH - 8) / 2, C_LABEL);
+        text(Ui.ellipsize(font, vs, barX - 8 - l.x), l.x, hy, C_LABEL);
+        textCenter(Names.tr("feurcalc.moves.damage"), barX + barW / 2, hy, C_LABEL);
+        textCenter(Names.tr("feurcalc.moves.ko"), koRight - (koColW - 6) / 2, hy, C_LABEL);
 
         for (int i = 0; i < 4; i++) {
             final int slot = i;
             int ry = y + rowH * (i + 1);
-            int h = rowH - 1;
+            int h = chipH;
             String id = m.moves[i];
             MoveTemplate template = Names.move(id);
             if (template != null) {
                 ElementalType type = template.getElementalType();
-                iconOps.add(gg -> Ui.typeIcon(gg, type, l.x, ry + (h - 9) / 2, 9));
+                iconOps.add(gg -> Ui.typeIcon(gg, type, l.x + 1, ry + (h - 9) / 2, 9));
             }
-            int nameX = l.x + 11;
-            int nameW = dmgRight - 64 - nameX;
+            int nameX = l.x + 14;
+            int nameW = barX - 6 - nameX;
             String label = id.isEmpty() ? Names.tr("feurcalc.moves.empty") : Names.moveName(id);
             JsonObject r = id.isEmpty() || target.isEmpty() ? null : state.move(s == 0, i);
             List<Component> tip = new ArrayList<>();
@@ -986,14 +1086,12 @@ public final class FeurcalcScreen extends Screen {
 
             if (template != null) {
                 // liseré de la couleur du type à gauche de la ligne
-                g.fill(l.x - 2, ry + 2, l.x - 1, ry + h - 2, 0xFF000000 | template.getElementalType().getHue());
+                g.fill(l.x - 3, ry + 2, l.x - 2, ry + h - 2, 0xFF000000 | template.getElementalType().getHue());
             }
             if (id.isEmpty() || target.isEmpty()) {
                 continue;
             }
-            int ty = ry + (h - 8) / 2;
-            int barW = 62;
-            int barX = dmgRight - barW;
+            int ty = textY(ry, h);
             Theme.rect(g, barX, ry + 1, barW, h - 2, 2, Theme.FIELD);
             if (r == null) {
                 textCenter("…", barX + barW / 2, ty, C_DIM);
@@ -1022,15 +1120,16 @@ public final class FeurcalcScreen extends Screen {
                 Theme.rect(g, barX, ry + 1, Math.max(2, minW), h - 2, 2, Theme.withAlpha(color, 0x6A));
             }
             String dmg = max <= 0 ? "0%" : String.format(Locale.ROOT, "%.1f–%.1f%%", min, max);
-            if (font.width(dmg) > barW - 4) {
+            if (font.width(dmg) > barW - 6) {
                 dmg = String.format(Locale.ROOT, "%.0f–%.0f%%", min, max);
             }
-            textRight(dmg, dmgRight - 3, ty, max <= 0 ? C_DIM : Theme.lighten(color, 0.35F));
+            textCenter(dmg, barX + barW / 2, ty, max <= 0 ? C_DIM : Theme.lighten(color, 0.35F));
             String ko = Names.koText(n, chance);
             if (!ko.isEmpty()) {
-                int koW = Math.min(koRight - dmgRight - 3, font.width(ko) + 8);
-                Theme.rect(g, koRight - koW, ry + 1, koW, h - 2, 2, Theme.darken(color, 0.62F));
-                textCenter(Ui.ellipsize(font, ko, koW - 4), koRight - koW / 2, ty, color);
+                int koW = Math.min(koColW - 6, font.width(ko) + 8);
+                int koCenter = koRight - (koColW - 6) / 2;
+                Theme.rect(g, koCenter - koW / 2, ry + 1, koW, h - 2, 2, Theme.darken(color, 0.62F));
+                textCenter(Ui.ellipsize(font, ko, koW - 4), koCenter, ty, color);
             }
             tipArea(mx, my, barX, ry, koRight - barX, h, tip);
         }
@@ -1042,18 +1141,18 @@ public final class FeurcalcScreen extends Screen {
 
     private void drawStats(GuiGraphics g, int s, Layout l, MonState m, int mx, int my) {
         int y = l.statsY;
-        int ty = y + (rowH - 8) / 2;
-        textRight(Names.tr("feurcalc.col.base"), l.x + COL_BASE_RIGHT, ty, C_LABEL);
-        textCenter("IV", l.x + COL_IV + COL_IV_W / 2, ty, C_LABEL);
+        int ty = textY(y, chipH) + (rowH - chipH) / 2;
+        textRight(Names.tr("feurcalc.col.base"), l.x + colBaseRight, ty, C_LABEL);
+        textCenter("IV", l.x + colIv + COL_IV_W / 2, ty, C_LABEL);
         int evTotal = m.evTotal();
         String ev = "EV";
-        textCenter(ev, l.x + COL_EV + COL_EV_W / 2, ty, evTotal > 510 ? 0xFFFF6A5A : C_LABEL);
-        tipArea(mx, my, l.x + COL_EV, y, COL_EV_W, rowH,
+        textCenter(ev, l.x + colEv + COL_EV_W / 2, ty, evTotal > 510 ? 0xFFFF6A5A : C_LABEL);
+        tipArea(mx, my, l.x + colEv, y, COL_EV_W, rowH,
                 List.of(tr("feurcalc.tip.ev_total", evTotal), tr("feurcalc.tip.scroll")));
-        textRight(Names.tr("feurcalc.col.stat"), l.x + COL_STAT_RIGHT, ty, C_LABEL);
-        textCenter(Names.tr("feurcalc.col.boost"), l.x + COL_BOOST + 21, ty, C_LABEL);
+        textRight(Names.tr("feurcalc.col.stat"), l.x + colStatRight, ty, C_LABEL);
+        textCenter(Names.tr("feurcalc.col.boost"), l.x + colBoost + boostWidth() / 2, ty, C_LABEL);
         int remaining = Math.max(0, 510 - evTotal);
-        if (l.x + COL_BOOST + 46 + font.width("510") < l.x + l.w) {
+        if (colBoost + boostWidth() + 8 + font.width("510") <= l.w) {
             textRight(String.valueOf(remaining), l.x + l.w, ty, evTotal > 510 ? 0xFFFF6A5A : 0xFF6A7480);
             tipArea(mx, my, l.x + l.w - 20, y, 20, rowH, List.of(tr("feurcalc.tip.ev_left", remaining)));
         }
@@ -1064,35 +1163,36 @@ public final class FeurcalcScreen extends Screen {
         for (int i = 0; i < 6; i++) {
             final int stat = i;
             int ry = statRowY(l, i);
-            int rty = ry + (rowH - 1 - 8) / 2;
+            int rty = textY(ry, chipH);
             int nat = Names.natureModifier(m.nature, i);
             String label = Names.statLabel(i) + (nat > 0 ? "+" : nat < 0 ? "−" : "");
             text(label, l.x, rty, nat > 0 ? C_PLUS : nat < 0 ? C_MINUS : C_LABEL);
             Integer b = base.get(Names.STATS[i]);
-            textRight(b == null ? "?" : String.valueOf(b), l.x + COL_BASE_RIGHT, rty, b == null ? C_DIM : Theme.statColor(b));
+            textRight(b == null ? "?" : String.valueOf(b), l.x + colBaseRight, rty, b == null ? C_DIM : Theme.statColor(b));
 
             if (stats != null && stats.has(Names.STAT_IDS[i])) {
                 int raw = stats.get(Names.STAT_IDS[i]).getAsInt();
                 int boost = i == 0 ? 0 : m.boosts[i];
                 int value = boosted(raw, boost);
-                textRight(String.valueOf(value), l.x + COL_STAT_RIGHT, rty, boost > 0 ? 0xFF7FE08A : boost < 0 ? 0xFFFF8A7A : C_TEXT);
+                textRight(String.valueOf(value), l.x + colStatRight, rty, boost > 0 ? 0xFF7FE08A : boost < 0 ? 0xFFFF8A7A : C_TEXT);
                 if (boost != 0) {
-                    tipArea(mx, my, l.x + COL_STAT_RIGHT - 30, ry, 30, rowH - 1,
+                    tipArea(mx, my, l.x + colStatRight - 30, ry, 30, chipH,
                             List.of(tr("feurcalc.tip.boosted", raw, value)));
                 }
             }
             if (i == 0) {
                 continue;
             }
-            int bx = l.x + COL_BOOST;
-            int h = rowH - 1;
-            chip(g, bx, ry, 10, h, "−", C_TEXT, false, true, mx, my,
+            int bx = l.x + colBoost;
+            int h = chipH;
+            chip(g, bx, ry, boostStep, h, "−", C_TEXT, false, true, mx, my,
                     () -> m.boosts[stat] = Math.max(-6, m.boosts[stat] - 1), null, null);
             int boost = m.boosts[i];
             String bt = boost > 0 ? "+" + boost : String.valueOf(boost);
-            chip(g, bx + 11, ry, 20, h, bt, boost > 0 ? 0xFF7FE08A : boost < 0 ? 0xFFFF8A7A : C_DIM, false, true, mx, my,
+            int vx = bx + boostStep + boostGap;
+            chip(g, vx, ry, 20, h, bt, boost > 0 ? 0xFF7FE08A : boost < 0 ? 0xFFFF8A7A : C_DIM, false, true, mx, my,
                     null, () -> m.boosts[stat] = 0, null);
-            chip(g, bx + 32, ry, 10, h, "+", C_TEXT, false, true, mx, my,
+            chip(g, vx + 20 + boostGap, ry, boostStep, h, "+", C_TEXT, false, true, mx, my,
                     () -> m.boosts[stat] = Math.min(6, m.boosts[stat] + 1), null, null);
         }
     }
@@ -1107,22 +1207,23 @@ public final class FeurcalcScreen extends Screen {
     private void drawSide(GuiGraphics g, int s, Layout l, int mx, int my) {
         FieldState.Side side = fieldSide(s);
         String who = shortName(mon(s));
-        int w = (l.w - 4) / 3;
-        int h = rowH - 1;
+        int gap = 5;
+        int w = (l.w - 2 * gap) / 3;
+        int h = chipH;
         int y = l.sideY;
         chip(g, l.x, y, w, h, Names.tr("feurcalc.side.reflect"), C_TEXT, side.reflect, true, mx, my,
                 () -> side.reflect = !side.reflect, null, List.of(tr("feurcalc.tip.reflect", who)));
-        chip(g, l.x + w + 2, y, w, h, Names.tr("feurcalc.side.light_screen"), C_TEXT, side.lightScreen, true, mx, my,
+        chip(g, l.x + w + gap, y, w, h, Names.tr("feurcalc.side.light_screen"), C_TEXT, side.lightScreen, true, mx, my,
                 () -> side.lightScreen = !side.lightScreen, null, List.of(tr("feurcalc.tip.light_screen", who)));
-        chip(g, l.x + 2 * (w + 2), y, w, h, Names.tr("feurcalc.side.aurora_veil"), C_TEXT, side.auroraVeil, true, mx, my,
+        chip(g, l.x + l.w - w, y, w, h, Names.tr("feurcalc.side.aurora_veil"), C_TEXT, side.auroraVeil, true, mx, my,
                 () -> side.auroraVeil = !side.auroraVeil, null, List.of(tr("feurcalc.tip.aurora_veil", who)));
         y += rowH;
         chip(g, l.x, y, w, h, Names.tr("feurcalc.side.stealth_rock"), C_TEXT, side.stealthRock, true, mx, my,
                 () -> side.stealthRock = !side.stealthRock, null, List.of(tr("feurcalc.tip.hazards", who)));
-        chip(g, l.x + w + 2, y, w, h, Names.tr("feurcalc.side.spikes", side.spikes), C_TEXT, side.spikes > 0, true, mx, my,
+        chip(g, l.x + w + gap, y, w, h, Names.tr("feurcalc.side.spikes", side.spikes), C_TEXT, side.spikes > 0, true, mx, my,
                 () -> side.spikes = (side.spikes + 1) % 4, () -> side.spikes = Math.floorMod(side.spikes - 1, 4),
                 List.of(tr("feurcalc.tip.hazards", who), tr("feurcalc.tip.cycle")));
-        chip(g, l.x + 2 * (w + 2), y, w, h, Names.tr("feurcalc.side.tailwind"), C_TEXT, side.tailwind, true, mx, my,
+        chip(g, l.x + l.w - w, y, w, h, Names.tr("feurcalc.side.tailwind"), C_TEXT, side.tailwind, true, mx, my,
                 () -> side.tailwind = !side.tailwind, null, List.of(tr("feurcalc.tip.tailwind", who)));
     }
 
