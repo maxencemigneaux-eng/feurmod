@@ -2,6 +2,7 @@ package com.goat.feurcalc;
 
 import com.cobblemon.mod.common.api.moves.MoveTemplate;
 import com.cobblemon.mod.common.api.types.ElementalType;
+import com.goat.feurmod.ui.Theme;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
@@ -30,8 +31,8 @@ import java.util.function.Consumer;
  */
 public final class BattleHud {
     private static final Path CONFIG = FabricLoader.getInstance().getConfigDir().resolve("feurcalc.json");
-    private static final int BUTTON_H = 13;
-    private static final int ROW = 10;
+    private static final int BUTTON_H = 14;
+    private static final int ROW = 12;
     private static final int SIDE_TILES = 146; // place prise par les cadres des Pokémon à gauche et à droite
 
     private static Boolean hudVisible;
@@ -72,7 +73,7 @@ public final class BattleHud {
     }
 
     private static int buttonW(Font font) {
-        return font.width(buttonLabel()) + 10;
+        return font.width(buttonLabel()) + 14;
     }
 
     private static boolean overButton(Screen s, double mx, double my) {
@@ -95,10 +96,10 @@ public final class BattleHud {
         int bw = buttonW(font);
         int bx = (s.width - bw) / 2;
         boolean hover = overButton(s, mouseX, mouseY);
-        g.fill(bx, 3, bx + bw, 3 + BUTTON_H, hover ? 0xD0405060 : 0xB0202830);
-        g.renderOutline(bx, 3, bw, BUTTON_H, 0xFF6A7A8A);
+        Theme.rect(g, bx, 3, bw, BUTTON_H, 3, hover ? 0xF0283240 : 0xE0141A21);
+        Theme.outline(g, bx, 3, bw, BUTTON_H, 2, hover ? Theme.ACCENT : Theme.withAlpha(Theme.ACCENT, 0x90));
         String label = buttonLabel();
-        texts.add(gg -> gg.drawString(font, label, bx + 5, 6, 0xFFFFE08A, false));
+        texts.add(gg -> gg.drawString(font, label, bx + 7, 6, Theme.GOLD, false));
 
         // Résumé
         int w = Math.min(190, s.width - 2 * SIDE_TILES);
@@ -115,51 +116,61 @@ public final class BattleHud {
             }
             JsonObject danger = bestMove(state, false);
             int rows = 1 + moveSlots.size() + (danger != null ? 1 : 0);
-            int h = rows * ROW + 4;
-            g.fill(x, y, x + w, y + h, 0xA0101418);
-            g.renderOutline(x, y, w, h, 0x806A7A8A);
+            int h = rows * ROW + 6;
+            Theme.rect(g, x, y, w, h, 3, 0xE0111720);
+            Theme.outline(g, x, y, w, h, 2, 0xFF29323E);
 
-            int ty = y + 2;
+            // En-tête : l'adversaire et ses PV
+            int ty = y + 3;
             String target = state.b.displayName.isEmpty() ? state.b.species.getTranslatedName().getString() : state.b.displayName;
             String header = Names.tr("feurcalc.hud.vs", target, state.b.hpPercent);
             final int hy = ty;
-            texts.add(gg -> gg.drawString(font, Ui.ellipsize(font, header, w - 8), x + 4, hy + 1, 0xFFFFB0A0, false));
-            ty += ROW;
+            texts.add(gg -> gg.drawString(font, Ui.ellipsize(font, header, w - 10), x + 5, hy + 1, 0xFFFF9AA8, false));
+            Theme.bar(g, x + 5, ty + 10, w - 10, 2, state.b.hpPercent / 100F, Theme.hpColor(state.b.hpPercent), Theme.TRACK);
+            ty += ROW + 1;
 
             for (int slot : moveSlots) {
                 final int ry = ty;
                 MoveTemplate template = Names.move(state.a.moves[slot]);
                 if (template != null) {
                     ElementalType type = template.getElementalType();
-                    icons.add(gg -> Ui.typeIcon(gg, type, x + 4, ry + 1, 8));
+                    icons.add(gg -> Ui.typeIcon(gg, type, x + 5, ry + 1, 8));
                 }
                 JsonObject r = state.move(true, slot);
                 String result = resultText(r);
                 int color = resultColor(r);
                 int resultW = font.width(result);
-                String name = Ui.ellipsize(font, Names.moveName(state.a.moves[slot]), w - 20 - resultW - 6);
+                // petite barre de dégâts sous la ligne (100 % = toute la largeur)
+                double max = CalcState.getDouble(r, "maxPct", 0);
+                if (max > 0) {
+                    int barW = (int) Math.round((w - 20) * Math.min(100, max) / 100.0);
+                    Theme.rect(g, x + 15, ry + 9, Math.max(2, barW), 2, 1, Theme.withAlpha(color, 0xB0));
+                }
+                String name = Ui.ellipsize(font, Names.moveName(state.a.moves[slot]), w - 22 - resultW - 6);
                 texts.add(gg -> {
-                    gg.drawString(font, name, x + 14, ry + 1, 0xFFFFFFFF, false);
-                    gg.drawString(font, result, x + w - 4 - resultW, ry + 1, color, false);
+                    gg.drawString(font, name, x + 15, ry, 0xFFFFFFFF, false);
+                    gg.drawString(font, result, x + w - 5 - resultW, ry, color, false);
                 });
                 ty += ROW;
             }
 
             if (danger != null) {
                 final int ry = ty;
+                // l'attaque adverse la plus dangereuse, sur fond rouge
+                Theme.rect(g, x + 2, ry - 2, w - 4, ROW + 1, 2, 0x50FF3B4E);
                 String id = CalcState.getString(danger, "id");
                 MoveTemplate template = Names.move(id);
                 if (template != null) {
                     ElementalType type = template.getElementalType();
-                    icons.add(gg -> Ui.typeIcon(gg, type, x + 4, ry + 1, 8));
+                    icons.add(gg -> Ui.typeIcon(gg, type, x + 5, ry, 8));
                 }
                 String result = resultText(danger);
                 int color = resultColor(danger);
                 int resultW = font.width(result);
-                String name = Ui.ellipsize(font, "▼ " + Names.moveName(id), w - 20 - resultW - 6);
+                String name = Ui.ellipsize(font, "▼ " + Names.moveName(id), w - 22 - resultW - 6);
                 texts.add(gg -> {
-                    gg.drawString(font, name, x + 14, ry + 1, 0xFFFF9A8A, false);
-                    gg.drawString(font, result, x + w - 4 - resultW, ry + 1, color, false);
+                    gg.drawString(font, name, x + 15, ry, 0xFFFFA0A8, false);
+                    gg.drawString(font, result, x + w - 5 - resultW, ry, color, false);
                 });
             }
         }

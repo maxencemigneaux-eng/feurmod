@@ -13,11 +13,12 @@ import com.cobblemon.mod.common.pokemon.FormData;
 import com.cobblemon.mod.common.pokemon.RenderablePokemon;
 import com.cobblemon.mod.common.pokemon.Species;
 import com.cobblemon.mod.common.pokemon.abilities.HiddenAbility;
+import com.goat.feurmod.ui.FlatButton;
+import com.goat.feurmod.ui.Theme;
 import com.mojang.blaze3d.systems.RenderSystem;
 import net.minecraft.ChatFormatting;
 import net.minecraft.Util;
 import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.screens.Screen;
@@ -114,8 +115,8 @@ public final class FeurinfoScreen extends Screen {
     private EditBox search;
     private EditBox moveFilter;
     private ModelWidget model;
-    private Button shinyButton;
-    private final Map<Tab, Button> tabButtons = new EnumMap<>(Tab.class);
+    private FlatButton shinyButton;
+    private final Map<Tab, FlatButton> tabButtons = new EnumMap<>(Tab.class);
 
     // --- Mise en page ---
     private int leftX;
@@ -133,6 +134,9 @@ public final class FeurinfoScreen extends Screen {
     private int infoY;
     private int listTop;
     private int listBottom;
+    private int searchX;
+    private int searchW;
+    private static final int SEARCH_Y = 7;
 
     public FeurinfoScreen(@Nullable Species species) {
         super(Component.translatable("feurinfo.title"));
@@ -342,20 +346,21 @@ public final class FeurinfoScreen extends Screen {
         leftW = Mth.clamp(width * 34 / 100, 130, 210);
         rightX = leftX + leftW + 6;
         rightW = width - MARGIN - rightX;
-        modelX = leftX + 4;
-        modelY = panelY + 4;
-        modelW = leftW - 8;
+        modelX = leftX + 5;
+        modelY = panelY + 5;
+        modelW = leftW - 10;
         // Sous le modèle : la ligne forme / shiny (24 px), puis les talents et les stats de base
-        modelH = Math.max(64, panelH - 4 - 24 - 4 - (species == null ? 0 : infoHeight()) - 4);
+        modelH = Math.max(64, panelH - 5 - 24 - 4 - (species == null ? 0 : infoHeight()) - 4);
         formRowY = modelY + modelH + 4;
         infoY = formRowY + 24 + 2;
-        filterY = panelY + 24;
-        listTop = panelY + 58;
-        listBottom = panelY + panelH - 4;
+        filterY = panelY + 30;
+        listTop = panelY + 62;
+        listBottom = panelY + panelH - 5;
 
-        int searchW = Math.min(170, width / 3);
-        search = new EditBox(font, width - MARGIN - searchW, 8, searchW, 16, Component.translatable("feurinfo.search.hint"));
-        search.setHint(Component.translatable("feurinfo.search.hint").withStyle(ChatFormatting.DARK_GRAY));
+        searchW = Math.min(170, width / 3);
+        searchX = width - MARGIN - searchW;
+        search = Theme.fieldBox(font, searchX, SEARCH_Y, searchW, 16, Component.translatable("feurinfo.search.hint"));
+        search.setHint(Component.translatable("feurinfo.search.hint").withStyle(s -> s.withColor(Theme.MUTED)));
         search.setMaxLength(40);
         search.setValue(searchText);
         search.setResponder(this::onSearchChanged);
@@ -371,35 +376,43 @@ public final class FeurinfoScreen extends Screen {
 
         int rowY = formRowY;
         if (forms.size() > 1) {
-            addRenderableWidget(Button.builder(Component.literal("<"), b -> changeForm(-1))
-                    .bounds(leftX + 4, rowY, 20, 20).build());
-            addRenderableWidget(Button.builder(Component.literal(">"), b -> changeForm(1))
-                    .bounds(leftX + leftW - 48, rowY, 20, 20).build());
+            addRenderableWidget(new FlatButton(leftX + 5, rowY + 2, 18, 18, Component.literal("◀"), () -> changeForm(-1)));
+            addRenderableWidget(new FlatButton(leftX + leftW - 47, rowY + 2, 18, 18, Component.literal("▶"), () -> changeForm(1)));
         }
         // Petit bouton shiny à droite de la ligne des formes
-        shinyButton = addRenderableWidget(Button.builder(shinyLabel(), b -> toggleShiny())
-                .bounds(leftX + leftW - 24, rowY, 20, 20).tooltip(shinyTooltip()).build());
+        shinyButton = addRenderableWidget(new FlatButton(leftX + leftW - 25, rowY + 2, 20, 18, shinyLabel(), this::toggleShiny)
+                .accent(0xFF8A6A1E));
+        shinyButton.selected = shiny;
+        shinyButton.setTooltip(shinyTooltip());
 
+        // Onglets dessinés (Niveau, CT, Œufs, Tuteur, Évolution, Autres, Spawn)
         List<Tab> visible = visibleTabs();
         int gap = 2;
-        int tabW = Math.max(30, (rightW - 8 - gap * (visible.size() - 1)) / visible.size());
-        int tabX = rightX + 4;
+        int tabW = Math.max(30, (rightW - 10 - gap * (visible.size() - 1)) / visible.size());
+        int tabX = rightX + 5;
         for (Tab t : visible) {
-            Button button = Button.builder(Component.translatable("feurinfo.tab." + t.key), b -> selectTab(t))
-                    .bounds(tabX, panelY + 4, tabW, 16).build();
-            button.active = t != tab;
+            FlatButton button = new FlatButton(tabX, panelY + 5, tabW, 16, Component.translatable("feurinfo.tab." + t.key),
+                    () -> selectTab(t));
             tabButtons.put(t, addRenderableWidget(button));
             tabX += tabW + gap;
         }
 
         // Barre de recherche d'attaque (cherche dans toutes les catégories du Pokémon)
-        moveFilter = new EditBox(font, rightX + 6, filterY, rightW - 12 - 72, 16, Component.translatable("feurinfo.filter.hint"));
-        moveFilter.setHint(Component.translatable("feurinfo.filter.hint").withStyle(ChatFormatting.DARK_GRAY));
+        moveFilter = Theme.fieldBox(font, rightX + 6, filterY, filterW(), 16, Component.translatable("feurinfo.filter.hint"));
+        moveFilter.setHint(Component.translatable("feurinfo.filter.hint").withStyle(s -> s.withColor(Theme.MUTED)));
         moveFilter.setMaxLength(40);
         moveFilter.setValue(moveFilterText);
         moveFilter.setResponder(this::onMoveFilterChanged);
         addRenderableWidget(moveFilter);
         updateTabButtons();
+    }
+
+    private int filterW() {
+        return rightW - 12 - 72;
+    }
+
+    private static boolean inRect(double mx, double my, int x, int y, int w, int h) {
+        return mx >= x && mx < x + w && my >= y && my < y + h;
     }
 
     private ModelWidget createModel() {
@@ -427,8 +440,8 @@ public final class FeurinfoScreen extends Screen {
 
     private Component shinyLabel() {
         return shiny
-                ? Component.literal("★").withStyle(ChatFormatting.GOLD)
-                : Component.literal("☆").withStyle(ChatFormatting.GRAY);
+                ? Component.literal("★").withStyle(s -> s.withColor(Theme.GOLD))
+                : Component.literal("☆").withStyle(s -> s.withColor(Theme.TEXT_2));
     }
 
     private Tooltip shinyTooltip() {
@@ -447,6 +460,7 @@ public final class FeurinfoScreen extends Screen {
 
     private void toggleShiny() {
         shiny = !shiny;
+        shinyButton.selected = shiny;
         shinyButton.setMessage(shinyLabel());
         shinyButton.setTooltip(shinyTooltip());
         replaceModel();
@@ -464,7 +478,7 @@ public final class FeurinfoScreen extends Screen {
 
     private void updateTabButtons() {
         boolean searching = filtering();
-        tabButtons.forEach((t, button) -> button.active = searching || t != tab);
+        tabButtons.forEach((t, button) -> button.selected = !searching && t == tab);
         if (moveFilter != null) {
             moveFilter.visible = tab != Tab.SPAWN || searching; // pas de recherche d'attaque dans l'onglet Spawn
         }
@@ -578,15 +592,32 @@ public final class FeurinfoScreen extends Screen {
     // =======================================================================================
 
     @Override
-    public void renderBackground(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        super.renderBackground(graphics, mouseX, mouseY, partialTick);
-        drawPanel(graphics, leftX, panelY, leftW, panelH);
-        drawPanel(graphics, rightX, panelY, rightW, panelH);
-    }
-
-    private static void drawPanel(GuiGraphics graphics, int x, int y, int w, int h) {
-        graphics.fill(x, y, x + w, y + h, 0xC0101418);
-        graphics.renderOutline(x, y, w, h, 0xFF3A4450);
+    public void renderBackground(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
+        super.renderBackground(g, mouseX, mouseY, partialTick);
+        Theme.panel(g, leftX, panelY, leftW, panelH, 4, Theme.PANEL, Theme.PANEL_BORDER);
+        Theme.panel(g, rightX, panelY, rightW, panelH, 4, Theme.PANEL, Theme.PANEL_BORDER);
+        if (search != null) {
+            Theme.field(g, searchX, SEARCH_Y, searchW, 16, search.isFocused(), inRect(mouseX, mouseY, searchX, SEARCH_Y, searchW, 16));
+        }
+        if (species == null) {
+            return;
+        }
+        // Carte du modèle 3D, éclairée par la couleur du type principal
+        int hue = 0x8899AA;
+        for (ElementalType type : form().getTypes()) {
+            hue = type.getHue();
+            break;
+        }
+        Theme.rect(g, modelX, modelY, modelW, modelH, 3, Theme.CARD_ALT);
+        g.fillGradient(modelX + 1, modelY + 1, modelX + modelW - 1, modelY + modelH - 1,
+                Theme.withAlpha(hue, 0x58), Theme.withAlpha(hue, 0x06));
+        // Bandeau des onglets
+        Theme.rect(g, rightX + 1, panelY + 1, rightW - 2, 24, 3, Theme.HEADER);
+        Theme.divider(g, rightX + 1, panelY + 25, rightW - 2);
+        if (moveFilter != null && moveFilter.visible) {
+            Theme.field(g, rightX + 6, filterY, filterW(), 16, moveFilter.isFocused(),
+                    inRect(mouseX, mouseY, rightX + 6, filterY, filterW(), 16));
+        }
     }
 
     @Override
@@ -602,41 +633,46 @@ public final class FeurinfoScreen extends Screen {
         }
 
         super.render(graphics, mouseX, mouseY, partialTick);
+        graphics.flush();
 
-        Component header = species == null
-                ? title.copy().withStyle(ChatFormatting.BOLD)
-                : Component.literal(String.format("#%04d  ", species.getNationalPokedexNumber())).withStyle(ChatFormatting.GRAY)
-                        .append(species.getTranslatedName().copy().withStyle(ChatFormatting.WHITE, ChatFormatting.BOLD));
-        graphics.drawString(font, header, MARGIN, 12, 0xFFFFFFFF, true);
-        if (species != null) {
-            // Types de la forme, juste après le nom
-            int typeX = MARGIN + font.width(header) + 6;
-            for (ElementalType type : form().getTypes()) {
-                drawTypeIcon(graphics, type, typeX, 9, 14);
-                typeX += 16;
-            }
-        }
+        drawHeader(graphics);
         if (searchError != null) {
-            graphics.drawString(font, searchError, search.getX() - font.width(searchError) - 6, 12, 0xFFFF6060, true);
+            graphics.drawString(font, searchError, searchX - font.width(searchError) - 8, 11, Theme.BAD, false);
         }
 
         if (species == null) {
+            int cx = rightX + rightW / 2;
+            int cy = panelY + panelH / 2;
             Component empty = Component.translatable("feurinfo.empty");
-            graphics.drawCenteredString(font, empty, rightX + rightW / 2, panelY + panelH / 2 - 4, 0xFFB0B8C0);
+            List<FormattedCharSequence> lines = font.split(empty, rightW - 40);
+            int boxW = 0;
+            for (FormattedCharSequence line : lines) {
+                boxW = Math.max(boxW, font.width(line));
+            }
+            boxW += 24;
+            int boxH = lines.size() * 10 + 14;
+            Theme.panel(graphics, cx - boxW / 2, cy - boxH / 2, boxW, boxH, 4, Theme.CARD, Theme.PANEL_BORDER);
+            graphics.flush();
+            for (int i = 0; i < lines.size(); i++) {
+                graphics.drawCenteredString(font, lines.get(i), cx, cy - boxH / 2 + 8 + i * 10, Theme.TEXT_2);
+            }
             return;
         }
 
         graphics.drawCenteredString(font, Component.translatable("feurinfo.drag_hint").withStyle(ChatFormatting.ITALIC),
-                leftX + leftW / 2, modelY + modelH - 10, 0xFF6A7480);
+                leftX + leftW / 2, modelY + modelH - 11, Theme.withAlpha(Theme.TEXT_2, 0xA0));
         int rowY = formRowY;
         String formLabel = formName(form(), formIndex == 0);
-        int formLeft = leftX + (forms.size() > 1 ? 26 : 4);
-        int formRight = leftX + leftW - (forms.size() > 1 ? 50 : 26);
+        int formLeft = leftX + (forms.size() > 1 ? 26 : 5);
+        int formRight = leftX + leftW - (forms.size() > 1 ? 50 : 28);
         int maxFormW = formRight - formLeft;
-        if (font.width(formLabel) > maxFormW) {
-            formLabel = font.plainSubstrByWidth(formLabel, Math.max(0, maxFormW - font.width("…"))) + "…";
+        String counter = forms.size() > 1 ? (formIndex + 1) + "/" + forms.size() : "";
+        formLabel = Theme.ellipsize(font, formLabel, maxFormW);
+        int labelY = counter.isEmpty() || maxFormW < 40 ? rowY + 7 : rowY + 3;
+        graphics.drawCenteredString(font, formLabel, (formLeft + formRight) / 2, labelY, Theme.TEXT);
+        if (!counter.isEmpty() && maxFormW >= 40) {
+            graphics.drawCenteredString(font, counter, (formLeft + formRight) / 2, rowY + 12, Theme.MUTED);
         }
-        graphics.drawCenteredString(font, formLabel, (formLeft + formRight) / 2, rowY + 6, 0xFFFFFFFF);
 
         drawInfo(graphics, mouseX, mouseY);
         if (showingSpawns()) {
@@ -646,11 +682,40 @@ public final class FeurinfoScreen extends Screen {
         }
     }
 
+    /** "#0006  Dracaufeu" + les types en pastilles colorées. */
+    private void drawHeader(GuiGraphics g) {
+        int x = MARGIN;
+        if (species == null) {
+            g.drawString(font, title.copy().withStyle(ChatFormatting.BOLD), x, 11, Theme.TEXT, false);
+            return;
+        }
+        String number = String.format("#%04d", species.getNationalPokedexNumber());
+        g.drawString(font, number, x, 11, Theme.MUTED, false);
+        x += font.width(number) + 6;
+        Component name = species.getTranslatedName().copy().withStyle(ChatFormatting.BOLD);
+        g.drawString(font, name, x, 11, Theme.TEXT, false);
+        x += font.width(name) + 8;
+        for (ElementalType type : form().getTypes()) {
+            x += typePill(g, type, x, 8, 14) + 3;
+        }
+    }
+
+    /** Pastille de type : icône + nom, sur la couleur du type. Renvoie sa largeur. */
+    private int typePill(GuiGraphics g, ElementalType type, int x, int y, int h) {
+        String name = type.getDisplayName().getString();
+        int icon = h - 4;
+        int w = 2 + icon + 3 + font.width(name) + 6;
+        Theme.rect(g, x, y, w, h, 3, Theme.typeBackground(type.getHue()));
+        g.flush();
+        drawTypeIcon(g, type, x + 2, y + 2, icon);
+        g.drawString(font, name, x + 2 + icon + 3, y + (h - 8) / 2, 0xFFFFFFFF, false);
+        return w;
+    }
+
     /** Talents (survol = description) et stats de base, sous le modèle 3D. */
     private void drawInfo(GuiGraphics graphics, int mouseX, int mouseY) {
-        int x0 = leftX + 6;
-        int x1 = leftX + leftW - 6;
-        int gray = 0xFF9AA4AE;
+        int x0 = leftX + 7;
+        int x1 = leftX + leftW - 7;
         int abilitiesY = infoY + INFO_ROW;
         int statsTitleY = infoY + INFO_ROW + Math.max(3, abilities.size()) * INFO_ROW + 6;
         int statsY = statsTitleY + INFO_ROW;
@@ -661,62 +726,59 @@ public final class FeurinfoScreen extends Screen {
             labelW = Math.max(labelW, font.width(I18n.get("feurinfo.stat." + key)));
         }
         int valueRight = x0 + labelW + 4 + font.width("255");
-        int barX = valueRight + 4;
+        int barX = valueRight + 5;
         int barW = Math.max(10, x1 - barX);
 
-        // 1er passage : traits, survol, barres
-        graphics.fill(x0 - 2, infoY - 2, x1 + 2, infoY - 1, 0xFF3A4450);
-        graphics.fill(x0 - 2, statsTitleY - 4, x1 + 2, statsTitleY - 3, 0xFF3A4450);
+        // 1er passage : fonds, barres
+        Theme.divider(graphics, x0 - 3, infoY - 3, x1 - x0 + 6);
         AbilityLine hoveredAbility = null;
         for (int i = 0; i < abilities.size(); i++) {
+            AbilityLine line = abilities.get(i);
             int ry = abilitiesY + i * INFO_ROW;
-            if (mouseX >= x0 - 2 && mouseX < x1 + 2 && mouseY >= ry - 1 && mouseY < ry + INFO_ROW - 1) {
-                hoveredAbility = abilities.get(i);
-                graphics.fill(x0 - 2, ry - 1, x1 + 2, ry + INFO_ROW - 1, 0x40FFFFFF);
+            boolean hover = mouseX >= x0 - 3 && mouseX < x1 + 3 && mouseY >= ry - 1 && mouseY < ry + INFO_ROW - 1;
+            if (hover) {
+                hoveredAbility = line;
             }
+            int bg = line.hidden() ? (hover ? 0xFF3B3060 : 0xFF2A2442) : (hover ? Theme.CARD_HOVER : Theme.CARD);
+            Theme.rect(graphics, x0 - 3, ry - 1, x1 - x0 + 6, INFO_ROW - 1, 2, bg);
         }
+        Theme.divider(graphics, x0 - 3, statsTitleY - 4, x1 - x0 + 6);
         int total = 0;
         for (int i = 0; i < STATS.length; i++) {
             int value = base.getOrDefault(STATS[i], 0);
             total += value;
             int ry = statsY + i * INFO_ROW;
-            graphics.fill(barX, ry + 1, barX + barW, ry + 7, 0xFF262C33);
-            int filled = Math.round(barW * Math.min(255, value) / 255F);
-            graphics.fill(barX, ry + 1, barX + filled, ry + 7, statColor(value));
+            Theme.bar(graphics, barX, ry + 1, barW, 6, Math.min(1F, value / 200F), Theme.statColor(value), Theme.TRACK);
         }
         graphics.flush();
 
         // 2e passage : textes
-        graphics.drawString(font, Component.translatable("feurinfo.abilities"), x0, infoY, gray, false);
+        graphics.drawString(font, Component.translatable("feurinfo.abilities"), x0 - 1, infoY, Theme.LABEL, false);
         for (int i = 0; i < abilities.size(); i++) {
             AbilityLine line = abilities.get(i);
             int ry = abilitiesY + i * INFO_ROW;
-            String suffix = line.hidden() ? " " + I18n.get("feurinfo.ability.hidden") : "";
-            String name = abilityName(line.template());
-            int maxW = x1 - x0 - 2 - font.width("• ") - font.width(suffix);
-            if (font.width(name) > maxW) {
-                name = font.plainSubstrByWidth(name, Math.max(0, maxW - font.width("…"))) + "…";
-            }
-            String text = "• " + name;
-            graphics.drawString(font, text, x0 + 2, ry, line.hidden() ? 0xFFC9B6FF : 0xFFFFFFFF, false);
+            String suffix = line.hidden() ? I18n.get("feurinfo.ability.hidden") : "";
+            int suffixW = suffix.isEmpty() ? 0 : font.width(suffix) + 4;
+            String name = Theme.ellipsize(font, abilityName(line.template()), x1 - x0 - 2 - suffixW);
+            graphics.drawString(font, name, x0 + 1, ry, line.hidden() ? Theme.PURPLE : Theme.TEXT, false);
             if (!suffix.isEmpty()) {
-                graphics.drawString(font, suffix, x0 + 2 + font.width(text), ry, 0xFF8A949E, false);
+                graphics.drawString(font, suffix, x1 - font.width(suffix), ry, 0xFF8F7FBF, false);
             }
         }
         if (abilities.isEmpty()) {
-            graphics.drawString(font, "—", x0 + 2, abilitiesY, gray, false);
+            graphics.drawString(font, "—", x0 + 1, abilitiesY, Theme.MUTED, false);
         }
 
-        graphics.drawString(font, Component.translatable("feurinfo.stats"), x0, statsTitleY, gray, false);
+        graphics.drawString(font, Component.translatable("feurinfo.stats"), x0 - 1, statsTitleY, Theme.LABEL, false);
         for (int i = 0; i < STATS.length; i++) {
             int value = base.getOrDefault(STATS[i], 0);
             int ry = statsY + i * INFO_ROW;
-            graphics.drawString(font, I18n.get("feurinfo.stat." + STAT_KEYS[i]), x0, ry, gray, false);
-            drawRight(graphics, Component.literal(String.valueOf(value)), valueRight, ry, 0xFFFFFFFF);
+            graphics.drawString(font, I18n.get("feurinfo.stat." + STAT_KEYS[i]), x0, ry, Theme.TEXT_2, false);
+            drawRight(graphics, Component.literal(String.valueOf(value)), valueRight, ry, Theme.TEXT);
         }
         int totalY = statsY + STATS.length * INFO_ROW;
-        graphics.drawString(font, Component.translatable("feurinfo.stat.total"), x0, totalY, gray, false);
-        drawRight(graphics, Component.literal(String.valueOf(total)), valueRight, totalY, 0xFFFFD866);
+        graphics.drawString(font, Component.translatable("feurinfo.stat.total"), x0, totalY, Theme.TEXT_2, false);
+        drawRight(graphics, Component.literal(String.valueOf(total)), valueRight, totalY, Theme.GOLD);
 
         if (hoveredAbility != null) {
             List<FormattedCharSequence> lines = new ArrayList<>();
@@ -732,40 +794,30 @@ public final class FeurinfoScreen extends Screen {
         }
     }
 
-    /** Couleurs des barres de stats, comme sur Showdown. */
-    private static int statColor(int value) {
-        if (value < 30) return 0xFFF34444;
-        if (value < 60) return 0xFFFF7F0F;
-        if (value < 90) return 0xFFFFDD57;
-        if (value < 120) return 0xFFA0E515;
-        if (value < 150) return 0xFF23CD5E;
-        return 0xFF00C2B8;
-    }
-
     private void drawMoves(GuiGraphics graphics, int mouseX, int mouseY) {
         List<Row> list = currentRows();
         boolean searching = filtering();
-        int x0 = rightX + 6;
-        int x1 = rightX + rightW - 8;
+        int x0 = rightX + 7;
+        int x1 = rightX + rightW - 9;
         boolean showLevel = searching || tab == Tab.LEVEL;
         boolean showCategory = rightW >= 330;
 
         // Colonnes, de droite à gauche
-        int ppRight = x1;
+        int ppRight = x1 - 2;
         int accRight = ppRight - 24;
         int powRight = accRight - 34;
         int catX = powRight - 34 - 58;
         int typeX = (showCategory ? catX : powRight - 34) - TYPE_COL_W - 2;
-        int nameX = x0 + (showLevel ? (searching ? 48 : 26) : 0);
+        int nameX = x0 + 2 + (showLevel ? (searching ? 48 : 26) : 0);
 
         // Nombre d'attaques, à droite de la barre de recherche
         Component count = Component.translatable("feurinfo.moves_count", list.size());
-        drawRight(graphics, count, x1, filterY + 4, searching ? 0xFFFFD866 : 0xFF9AA4AE);
+        drawRight(graphics, count, x1, filterY + 4, searching ? Theme.GOLD : Theme.TEXT_2);
 
-        int headerY = panelY + 46;
-        int gray = 0xFF9AA4AE;
+        int headerY = panelY + 50;
+        int gray = Theme.LABEL;
         if (showLevel) {
-            graphics.drawString(font, Component.translatable(searching ? "feurinfo.col.method" : "feurinfo.col.level"), x0, headerY, gray, false);
+            graphics.drawString(font, Component.translatable(searching ? "feurinfo.col.method" : "feurinfo.col.level"), x0 + 2, headerY, gray, false);
         }
         graphics.drawString(font, Component.translatable("feurinfo.col.name"), nameX, headerY, gray, false);
         graphics.drawString(font, Component.translatable("feurinfo.col.type"), typeX, headerY, gray, false);
@@ -775,13 +827,13 @@ public final class FeurinfoScreen extends Screen {
         drawRight(graphics, Component.translatable("feurinfo.col.power"), powRight, headerY, gray);
         drawRight(graphics, Component.translatable("feurinfo.col.accuracy"), accRight, headerY, gray);
         drawRight(graphics, Component.translatable("feurinfo.col.pp"), ppRight, headerY, gray);
-        graphics.fill(x0 - 2, listTop - 2, x1 + 2, listTop - 1, 0xFF3A4450);
+        Theme.divider(graphics, x0 - 2, listTop - 3, x1 - x0 + 4);
 
         if (list.isEmpty()) {
             Component empty = searching
                     ? Component.translatable("feurinfo.no_match", moveFilterText.trim())
                     : Component.translatable("feurinfo.no_moves");
-            graphics.drawCenteredString(font, empty, rightX + rightW / 2, listTop + 12, 0xFFB0B8C0);
+            graphics.drawCenteredString(font, empty, rightX + rightW / 2, listTop + 12, Theme.TEXT_2);
             return;
         }
 
@@ -792,16 +844,21 @@ public final class FeurinfoScreen extends Screen {
 
         graphics.enableScissor(rightX + 1, listTop, rightX + rightW - 1, listBottom);
 
-        // 1er passage : les fonds (lignes + cases de type)
+        // 1er passage : les fonds (cartes des lignes, pastilles de catégorie)
         for (int i = 0; i < shown; i++) {
             Row row = list.get(scroll + i);
             int y = listTop + i * ROW_H;
             boolean hover = mouseX >= x0 - 2 && mouseX < x1 + 2 && mouseY >= y && mouseY < y + ROW_H && mouseY < listBottom;
             if (hover) {
                 hovered = row;
-                graphics.fill(x0 - 2, y, x1 + 2, y + ROW_H, 0x40FFFFFF);
-            } else if ((scroll + i) % 2 == 1) {
-                graphics.fill(x0 - 2, y, x1 + 2, y + ROW_H, 0x14FFFFFF);
+            }
+            int bg = hover ? Theme.CARD_HOVER : (scroll + i) % 2 == 0 ? Theme.CARD : Theme.CARD_ALT;
+            Theme.rect(graphics, x0 - 2, y, x1 - x0 + 4, ROW_H - 1, 2, bg);
+            int hue = 0xFF000000 | row.move().getElementalType().getHue();
+            graphics.fill(x0 - 2, y + 2, x0, y + ROW_H - 3, hover ? hue : Theme.withAlpha(hue, 0x90));
+            if (showCategory) {
+                int color = categoryColor(row.move().getDamageCategory());
+                Theme.rect(graphics, catX - 3, y + 3, 56, ROW_H - 7, 2, Theme.darken(color, 0.72F));
             }
         }
         // On dessine les fonds maintenant, pour que les icônes et le texte passent par-dessus
@@ -811,7 +868,7 @@ public final class FeurinfoScreen extends Screen {
         int iconX = typeX + (TYPE_COL_W - TYPE_ICON) / 2;
         for (int i = 0; i < shown; i++) {
             int y = listTop + i * ROW_H;
-            drawTypeIcon(graphics, list.get(scroll + i).move().getElementalType(), iconX, y + (ROW_H - TYPE_ICON) / 2, TYPE_ICON);
+            drawTypeIcon(graphics, list.get(scroll + i).move().getElementalType(), iconX, y + (ROW_H - 1 - TYPE_ICON) / 2, TYPE_ICON);
         }
 
         // 2e passage : les textes
@@ -819,35 +876,33 @@ public final class FeurinfoScreen extends Screen {
             Row row = list.get(scroll + i);
             MoveTemplate move = row.move();
             int y = listTop + i * ROW_H;
-            int textY = y + (ROW_H - 8) / 2;
+            int textY = y + (ROW_H - 1 - 8) / 2;
             if (showLevel) {
-                graphics.drawString(font, row.level(), x0, textY, 0xFFFFD866, false);
+                graphics.drawString(font, row.level(), x0 + 2, textY, Theme.GOLD, false);
             }
-            String name = move.getDisplayName().getString();
-            int maxNameW = typeX - nameX - 4;
-            if (font.width(name) > maxNameW) {
-                name = font.plainSubstrByWidth(name, Math.max(0, maxNameW - font.width("…"))) + "…";
-            }
-            graphics.drawString(font, name, nameX, textY, 0xFFFFFFFF, false);
+            String name = Theme.ellipsize(font, move.getDisplayName().getString(), typeX - nameX - 4);
+            graphics.drawString(font, name, nameX, textY, Theme.TEXT, false);
             if (showCategory) {
                 DamageCategory category = move.getDamageCategory();
-                graphics.drawString(font, category.getDisplayName(), catX, textY, categoryColor(category), false);
+                String cat = Theme.ellipsize(font, category.getDisplayName().getString(), 52);
+                graphics.drawString(font, cat, catX - 3 + (56 - font.width(cat)) / 2, textY, categoryColor(category), false);
             }
             double power = move.getPower();
             double accuracy = move.getAccuracy();
-            drawRight(graphics, Component.literal(power > 0 ? String.valueOf((int) power) : "—"), powRight, textY, 0xFFE0E0E0);
-            drawRight(graphics, Component.literal(accuracy > 0 && accuracy <= 100 ? (int) accuracy + "%" : "—"), accRight, textY, 0xFFE0E0E0);
-            drawRight(graphics, Component.literal(String.valueOf(move.getPp())), ppRight, textY, 0xFFE0E0E0);
+            drawRight(graphics, Component.literal(power > 0 ? String.valueOf((int) power) : "—"), powRight, textY, power > 0 ? Theme.TEXT : Theme.MUTED);
+            drawRight(graphics, Component.literal(accuracy > 0 && accuracy <= 100 ? (int) accuracy + "%" : "—"), accRight, textY,
+                    accuracy > 0 && accuracy <= 100 ? Theme.TEXT_2 : Theme.MUTED);
+            drawRight(graphics, Component.literal(String.valueOf(move.getPp())), ppRight, textY, Theme.TEXT_2);
         }
         graphics.disableScissor();
 
         // Barre de défilement
         if (list.size() > visible) {
             int trackH = listBottom - listTop;
-            int barH = Math.max(10, trackH * visible / list.size());
+            int barH = Math.max(12, trackH * visible / list.size());
             int barY = listTop + (trackH - barH) * scroll / Math.max(1, maxScroll());
-            graphics.fill(x1 + 4, listTop, x1 + 6, listBottom, 0x30FFFFFF);
-            graphics.fill(x1 + 4, barY, x1 + 6, barY + barH, 0xC0FFFFFF);
+            Theme.rect(graphics, x1 + 4, listTop, 3, trackH, 1, Theme.TRACK);
+            Theme.rect(graphics, x1 + 4, barY, 3, barH, 1, Theme.lighten(Theme.TRACK, 0.4F));
         }
 
         if (hovered != null) {
@@ -870,7 +925,6 @@ public final class FeurinfoScreen extends Screen {
             graphics.renderTooltip(font, lines, mouseX, mouseY);
         }
     }
-
 
     // =======================================================================================
     // Onglet Spawn : où apparaît le Pokémon
@@ -923,7 +977,7 @@ public final class FeurinfoScreen extends Screen {
 
         if (!SpawnIndex.isReady()) {
             graphics.drawCenteredString(font, Component.translatable("feurinfo.spawn.loading"), rightX + rightW / 2,
-                    top + 12, 0xFFB0B8C0);
+                    top + 12, Theme.TEXT_2);
             return;
         }
         prepareSpawns(x1 - x0 - 8);
@@ -932,22 +986,22 @@ public final class FeurinfoScreen extends Screen {
         int n = laidCards.size();
         Component count = n == 1 ? Component.translatable("feurinfo.spawn.count_one")
                 : Component.translatable("feurinfo.spawn.count", n);
-        graphics.drawString(font, count, x0, filterY + 2, n == 0 ? 0xFF9AA4AE : 0xFFFFD866, false);
+        graphics.drawString(font, count, x0, filterY + 2, n == 0 ? Theme.TEXT_2 : Theme.GOLD, false);
         String sourceKey = SpawnIndex.source() == SpawnIndex.Source.WORLD ? "feurinfo.spawn.source.world" : "feurinfo.spawn.source.mods";
         String note = I18n.get(sourceKey);
         int noteMax = x1 - x0;
         if (font.width(note) > noteMax) {
             note = font.plainSubstrByWidth(note, Math.max(0, noteMax - font.width("…"))) + "…";
         }
-        graphics.drawString(font, note, x0, filterY + 13, 0xFF6A7480, false);
+        graphics.drawString(font, note, x0, filterY + 13, Theme.MUTED, false);
         boolean noteHovered = mouseX >= x0 && mouseX < x0 + font.width(note) && mouseY >= filterY + 12 && mouseY < filterY + 22;
-        graphics.fill(x0 - 2, top - 3, x1 + 2, top - 2, 0xFF3A4450);
+        Theme.divider(graphics, x0 - 2, top - 3, x1 - x0 + 4);
 
         if (n == 0) {
             Component empty = Component.translatable(formIndex > 0 ? "feurinfo.spawn.none_form" : "feurinfo.spawn.none");
             List<FormattedCharSequence> lines = font.split(empty, x1 - x0 - 10);
             for (int i = 0; i < lines.size(); i++) {
-                graphics.drawCenteredString(font, lines.get(i), rightX + rightW / 2, top + 10 + i * 10, 0xFFB0B8C0);
+                graphics.drawCenteredString(font, lines.get(i), rightX + rightW / 2, top + 10 + i * 10, Theme.TEXT_2);
             }
             if (noteHovered) {
                 renderSourceTooltip(graphics, sourceKey, mouseX, mouseY);
@@ -968,8 +1022,8 @@ public final class FeurinfoScreen extends Screen {
                 if (hover) {
                     hovered = laid;
                 }
-                graphics.fill(x0 - 2, y, x1 + 2, y + laid.height(), hover ? 0x30FFFFFF : 0x16FFFFFF);
-                graphics.fill(x0 - 2, y, x0, y + laid.height(), laid.card().color());
+                Theme.rect(graphics, x0 - 2, y, x1 - x0 + 4, laid.height(), 3, hover ? Theme.CARD_HOVER : Theme.CARD);
+                Theme.rect(graphics, x0 - 2, y + 2, 2, laid.height() - 4, 1, laid.card().color());
             }
             y += laid.height() + SPAWN_GAP;
         }
@@ -993,8 +1047,8 @@ public final class FeurinfoScreen extends Screen {
         if (spawnContentH > trackH) {
             int barH = Math.max(10, trackH * trackH / spawnContentH);
             int barY = top + (trackH - barH) * spawnScroll / Math.max(1, spawnMaxScroll());
-            graphics.fill(x1 + 4, top, x1 + 6, bottom, 0x30FFFFFF);
-            graphics.fill(x1 + 4, barY, x1 + 6, barY + barH, 0xC0FFFFFF);
+            Theme.rect(graphics, x1 + 4, top, 3, trackH, 1, Theme.TRACK);
+            Theme.rect(graphics, x1 + 4, barY, 3, barH, 1, Theme.lighten(Theme.TRACK, 0.4F));
         }
 
         if (hovered != null && !hovered.card().tooltip().isEmpty()) {

@@ -1,6 +1,7 @@
 package com.goat.feurcalc;
 
 import com.cobblemon.mod.common.api.types.ElementalType;
+import com.goat.feurmod.ui.Theme;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.EditBox;
@@ -43,8 +44,8 @@ public final class Picker {
     }
 
     private static final int ROW = 11;
-    private static final int HEADER = 14;
-    private static final int FILTER_H = 12;
+    private static final int HEADER = 15;
+    private static final int FILTER_H = 14;
 
     private final Font font;
     private final Component title;
@@ -75,8 +76,8 @@ public final class Picker {
         this.h = Math.min(screenH - 8, HEADER + FILTER_H + 4 + ROW * 16 + 4);
         this.x = Mth.clamp(anchorX, 4, screenW - w - 4);
         this.y = Mth.clamp(anchorY, 4, screenH - h - 4);
-        this.filter = new EditBox(font, x + 4, y + HEADER, w - 8, FILTER_H, Component.translatable("feurcalc.picker.search"));
-        this.filter.setHint(Component.translatable("feurcalc.picker.search"));
+        this.filter = Theme.fieldBox(font, x + 4, y + HEADER, w - 8, FILTER_H, Component.translatable("feurcalc.picker.search"));
+        this.filter.setHint(Component.translatable("feurcalc.picker.search").withStyle(st -> st.withColor(Theme.MUTED)));
         this.filter.setMaxLength(40);
         this.filter.setResponder(this::refilter);
         this.filtered = new ArrayList<>(entries);
@@ -150,8 +151,10 @@ public final class Picker {
     public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
         g.pose().pushPose();
         g.pose().translate(0, 0, 400);
-        g.fill(x, y, x + w, y + h, 0xF2141A20);
-        g.renderOutline(x, y, w, h, 0xFF6A7A8A);
+        Theme.shadow(g, x, y, w, h, 4);
+        Theme.panel(g, x, y, w, h, 4, Theme.POPUP, Theme.lighten(Theme.PANEL_BORDER, 0.15F));
+        Theme.rect(g, x + 1, y + 1, w - 2, HEADER - 2, 3, Theme.HEADER);
+        Theme.field(g, x + 4, y + HEADER, w - 8, FILTER_H, filter.isFocused(), false);
         g.flush();
 
         filter.render(g, mouseX, mouseY, partialTick);
@@ -164,9 +167,11 @@ public final class Picker {
             int index = scroll + i;
             int ry = top + i * ROW;
             if (filtered.get(index).header()) {
-                g.fill(x + 2, ry, x + w - 6, ry + ROW, 0x24FFFFFF);
-            } else if (index == hovered || (hovered < 0 && index == selected)) {
-                g.fill(x + 2, ry, x + w - 6, ry + ROW, 0x40FFFFFF);
+                g.fill(x + 4, ry + ROW - 1, x + w - 8, ry + ROW, Theme.DIVIDER);
+            } else if (index == hovered) {
+                Theme.rect(g, x + 3, ry, w - 10, ROW, 2, Theme.CARD_HOVER);
+            } else if (hovered < 0 && index == selected) {
+                Theme.rect(g, x + 3, ry, w - 10, ROW, 2, Theme.CARD);
             }
         }
         // Barre de défilement
@@ -174,8 +179,8 @@ public final class Picker {
             int trackH = rows * ROW;
             int barH = Math.max(8, trackH * rows / filtered.size());
             int barY = top + (trackH - barH) * scroll / Math.max(1, filtered.size() - rows);
-            g.fill(x + w - 4, top, x + w - 2, top + trackH, 0x30FFFFFF);
-            g.fill(x + w - 4, barY, x + w - 2, barY + barH, 0xA0FFFFFF);
+            Theme.rect(g, x + w - 5, top, 3, trackH, 1, Theme.TRACK);
+            Theme.rect(g, x + w - 5, barY, 3, barH, 1, Theme.lighten(Theme.TRACK, 0.4F));
         }
         g.flush();
 
@@ -197,27 +202,27 @@ public final class Picker {
         }
         g.flush();
 
-        g.drawString(font, title, x + 5, y + 4, 0xFFFFE08A, false);
+        g.drawString(font, title, x + 6, y + 4, Theme.GOLD, false);
         for (int i = 0; i < rows && scroll + i < filtered.size(); i++) {
             Entry e = filtered.get(scroll + i);
             int ry = top + i * ROW;
             if (e.header()) {
                 g.drawString(font, Ui.ellipsize(font, e.label().toUpperCase(java.util.Locale.ROOT), w - 12), x + 5, ry + 2,
-                        0xFF8FA3B5, false);
+                        0xFF7FB2FF, false);
                 continue;
             }
             int tx = x + 5 + (e.icon() != null || !e.stack().isEmpty() ? 11 : 0);
             String detail = filtering && !e.group().isEmpty() ? e.group() : e.detail();
             int detailW = detail.isEmpty() ? 0 : Math.min(font.width(detail), (w - 16) / 2) + 4;
             String label = Ui.ellipsize(font, e.label(), x + w - 8 - detailW - tx);
-            g.drawString(font, label, tx, ry + 2, e.dim() ? 0xFF8A949E : 0xFFFFFFFF, false);
+            g.drawString(font, label, tx, ry + 2, e.dim() ? Theme.MUTED : Theme.TEXT, false);
             if (detailW > 0) {
                 String shown = Ui.ellipsize(font, detail, detailW - 4);
-                g.drawString(font, shown, x + w - 7 - font.width(shown), ry + 2, 0xFF8FA3B5, false);
+                g.drawString(font, shown, x + w - 8 - font.width(shown), ry + 2, Theme.LABEL, false);
             }
         }
         if (filtered.isEmpty()) {
-            g.drawString(font, Component.translatable("feurcalc.picker.empty"), x + 5, top + 2, 0xFF8A949E, false);
+            g.drawString(font, Component.translatable("feurcalc.picker.empty"), x + 6, top + 2, Theme.MUTED, false);
         }
         g.flush();
         g.pose().popPose();

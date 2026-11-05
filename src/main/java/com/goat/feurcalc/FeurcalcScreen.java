@@ -14,6 +14,7 @@ import com.cobblemon.mod.common.client.gui.battle.BattleGUI;
 import com.cobblemon.mod.common.pokemon.FormData;
 import com.cobblemon.mod.common.pokemon.Nature;
 import com.cobblemon.mod.common.pokemon.Species;
+import com.goat.feurmod.ui.Theme;
 import com.google.gson.JsonObject;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.gui.GuiGraphics;
@@ -47,16 +48,14 @@ import java.util.function.IntSupplier;
  * Ligne "Set" : les sets Smogon et le set le plus joué sur Showdown (comme Showdex).
  */
 public final class FeurcalcScreen extends Screen {
-    private static final int C_PANEL = 0xC0101418;
-    private static final int C_OUTLINE = 0xFF3A4450;
-    private static final int C_STRIPE = 0x14FFFFFF;
-    private static final int C_LABEL = 0xFF8FA3B5;
-    private static final int C_TEXT = 0xFFFFFFFF;
-    private static final int C_DIM = 0xFF8A949E;
-    private static final int C_TITLE = 0xFFFFE08A;
-    private static final int C_CHIP = 0x22FFFFFF;
-    private static final int C_HOVER = 0x50FFFFFF;
-    private static final int C_ON = 0x9030A050;
+    // Couleurs : le thème commun de Feurmod (façon Showdex)
+    private static final int C_LABEL = Theme.LABEL;
+    private static final int C_TEXT = Theme.TEXT;
+    private static final int C_DIM = Theme.MUTED;
+    private static final int C_TITLE = Theme.GOLD;
+    private static final int C_CHIP = Theme.CARD;
+    private static final int C_HOVER = Theme.CARD_HOVER;
+    private static final int C_ON = Theme.ON;
     private static final int C_PLUS = 0xFFFF9A8A;
     private static final int C_MINUS = 0xFF8AB4FF;
 
@@ -104,7 +103,7 @@ public final class FeurcalcScreen extends Screen {
     private boolean syncingBoxes;
 
     private record NumberBox(EditBox box, IntSupplier getter, IntConsumer setter, int min, int max, int step, int side,
-                             boolean spread) {
+                             boolean spread, int x, int y, int w, int h) {
     }
 
     // Zones cliquables, refaites à chaque image
@@ -191,10 +190,10 @@ public final class FeurcalcScreen extends Screen {
 
     private EditBox numberBox(int side, int x, int y, int w, int h, IntSupplier getter, IntConsumer setter,
                               int min, int max, int step, boolean spread) {
-        EditBox box = new EditBox(font, x, y, w, h, Component.empty());
+        EditBox box = Theme.fieldBox(font, x, y, w, h, Component.empty());
         box.setMaxLength(3);
         box.setFilter(s -> s.matches("\\d{0,3}"));
-        NumberBox nb = new NumberBox(box, getter, setter, min, max, step, side, spread);
+        NumberBox nb = new NumberBox(box, getter, setter, min, max, step, side, spread, x, y, w, h);
         box.setResponder(text -> {
             if (syncingBoxes) {
                 return;
@@ -298,7 +297,7 @@ public final class FeurcalcScreen extends Screen {
             return true;
         }
         for (NumberBox nb : numberBoxes) {
-            if (nb.box().visible && nb.box().isMouseOver(mx, my)) {
+            if (nb.box().visible && hover((int) mx, (int) my, nb.x(), nb.y(), nb.w(), nb.h())) {
                 int value = nb.getter().getAsInt();
                 if (hasShiftDown()) {
                     value = scrollY > 0 ? nb.max() : nb.min();
@@ -365,23 +364,33 @@ public final class FeurcalcScreen extends Screen {
         super.renderBackground(g, mouseX, mouseY, partialTick);
         for (int s = 0; s < 2; s++) {
             Layout l = layouts[s];
-            g.fill(l.panelX, panelY, l.panelX + panelW, panelY + panelH, C_PANEL);
-            g.renderOutline(l.panelX, panelY, panelW, panelH, s == 0 ? 0xFF3F6A8A : 0xFF8A4A4A);
+            int accent = s == 0 ? Theme.ACCENT : Theme.ACCENT_RED;
+            Theme.panel(g, l.panelX, panelY, panelW, panelH, 4, Theme.PANEL, Theme.mix(Theme.PANEL_BORDER, accent, 0.35F));
+            // Bandeau du haut, teinté bleu (toi) ou rouge (l'adversaire)
+            Theme.rect(g, l.panelX + 1, panelY + 1, panelW - 2, 18, 3, Theme.mix(Theme.HEADER, accent, 0.16F));
+            g.fill(l.panelX + 4, panelY + 1, l.panelX + panelW - 4, panelY + 2, Theme.withAlpha(accent, 0xC0));
             if (mon(s).isEmpty()) {
                 continue;
             }
-            // Bandes du tableau des stats et des attaques
+            // Cartes des attaques, bandes du tableau des stats
+            for (int i = 0; i < 4; i++) {
+                int y = l.movesY + rowH * (i + 1);
+                Theme.rect(g, l.x - 2, y, l.w + 4, rowH - 1, 2, Theme.CARD_ALT);
+            }
             for (int i = 0; i < 6; i += 2) {
                 int y = statRowY(l, i);
-                g.fill(l.x - 2, y - 1, l.x + l.w + 2, y + rowH - 1, C_STRIPE);
+                Theme.rect(g, l.x - 2, y - 1, l.w + 4, rowH, 2, Theme.CARD_ALT);
             }
-            for (int i = 0; i < 4; i += 2) {
-                int y = l.movesY + rowH * (i + 1);
-                g.fill(l.x - 2, y, l.x + l.w + 2, y + rowH, C_STRIPE);
+            Theme.divider(g, l.x, l.movesY - 2, l.w);
+            Theme.divider(g, l.x, l.statsY - 2, l.w);
+            Theme.divider(g, l.x, l.sideY - 2, l.w);
+        }
+        // Fonds des cases de saisie (niveau, PV, IV, EV)
+        for (NumberBox nb : numberBoxes) {
+            if (nb.box().visible) {
+                Theme.field(g, nb.x(), nb.y(), nb.w(), nb.h(), nb.box().isFocused(),
+                        picker == null && hover(mouseX, mouseY, nb.x(), nb.y(), nb.w(), nb.h()));
             }
-            g.fill(l.x, l.movesY - 2, l.x + l.w, l.movesY - 1, 0x30FFFFFF);
-            g.fill(l.x, l.statsY - 2, l.x + l.w, l.statsY - 1, 0x30FFFFFF);
-            g.fill(l.x, l.sideY - 2, l.x + l.w, l.sideY - 1, 0x30FFFFFF);
         }
     }
 
@@ -445,11 +454,15 @@ public final class FeurcalcScreen extends Screen {
     private void chip(GuiGraphics g, int x, int y, int w, int h, String label, int color, boolean on, boolean center,
                       int mx, int my, @Nullable Runnable left, @Nullable Runnable right, @Nullable List<Component> tip) {
         boolean hovered = hover(mx, my, x, y, w, h);
+        boolean clickable = left != null || right != null;
         int bg = on ? C_ON : C_CHIP;
-        if (hovered && (left != null || right != null)) {
-            bg = on ? 0xB040C060 : C_HOVER;
+        if (hovered && clickable) {
+            bg = on ? Theme.lighten(C_ON, 0.12F) : C_HOVER;
         }
-        g.fill(x, y, x + w, y + h, bg);
+        Theme.rect(g, x, y, w, h, 2, bg);
+        if (clickable && !on && h >= 8) {
+            g.fill(x + 2, y, x + w - 2, y + 1, 0x12FFFFFF); // petit relief
+        }
         String s = Ui.ellipsize(font, label, w - 4);
         int ty = y + (h - 8) / 2;
         if (center) {
@@ -646,9 +659,10 @@ public final class FeurcalcScreen extends Screen {
             ElementalType et = Names.type(type);
             final int ix = tx;
             if (et != null) {
-                iconOps.add(gg -> Ui.typeIcon(gg, et, ix, y + 2, 10));
-                tipArea(mx, my, ix, y + 2, 10, 10, List.of(Component.literal(Names.typeName(type))));
-                tx += 12;
+                Theme.rect(g, ix, y + 1, 12, 12, 2, Theme.typeBackground(et.getHue()));
+                iconOps.add(gg -> Ui.typeIcon(gg, et, ix + 1, y + 2, 10));
+                tipArea(mx, my, ix, y + 1, 12, 12, List.of(Component.literal(Names.typeName(type))));
+                tx += 14;
             } else if (type.equalsIgnoreCase("stellar")) {
                 text("✦", ix, y + 3, 0xFFFFE08A);
                 tx += 9;
@@ -821,9 +835,7 @@ public final class FeurcalcScreen extends Screen {
         int barX = l.x + 18;
         int barRight = l.x + l.w - 84;
         int barW = Math.max(10, barRight - barX);
-        g.fill(barX, y + 3, barX + barW, y + 8, 0xFF2A2F36);
-        int filled = Math.round(barW * Mth.clamp(m.hpPercent, 0, 100) / 100F);
-        g.fill(barX, y + 3, barX + filled, y + 8, Ui.hpColor(m.hpPercent));
+        Theme.bar(g, barX, y + 3, barW, 5, Mth.clamp(m.hpPercent, 0, 100) / 100F, Theme.hpColor(m.hpPercent), Theme.TRACK);
         text("%", l.x + l.w - 52, y + 2, C_LABEL);
         JsonObject summary = state.side(s == 0);
         if (summary != null) {
@@ -972,20 +984,27 @@ public final class FeurcalcScreen extends Screen {
                         state.spreadEdited(m);
                     }, tip);
 
+            if (template != null) {
+                // liseré de la couleur du type à gauche de la ligne
+                g.fill(l.x - 2, ry + 2, l.x - 1, ry + h - 2, 0xFF000000 | template.getElementalType().getHue());
+            }
             if (id.isEmpty() || target.isEmpty()) {
                 continue;
             }
             int ty = ry + (h - 8) / 2;
+            int barW = 62;
+            int barX = dmgRight - barW;
+            Theme.rect(g, barX, ry + 1, barW, h - 2, 2, Theme.FIELD);
             if (r == null) {
-                textRight("…", dmgRight, ty, C_DIM);
+                textCenter("…", barX + barW / 2, ty, C_DIM);
                 continue;
             }
             if (!r.has("known") || !r.get("known").getAsBoolean()) {
-                textRight("?", dmgRight, ty, C_DIM);
+                textCenter("?", barX + barW / 2, ty, C_DIM);
                 continue;
             }
             if ("Status".equals(CalcState.getString(r, "category"))) {
-                textRight(Names.tr("feurcalc.moves.status"), dmgRight, ty, C_DIM);
+                textCenter(Names.tr("feurcalc.moves.status"), barX + barW / 2, ty, C_DIM);
                 continue;
             }
             double min = CalcState.getDouble(r, "minPct", 0);
@@ -993,10 +1012,27 @@ public final class FeurcalcScreen extends Screen {
             int n = CalcState.getInt(r, "koN", 0);
             double chance = CalcState.getDouble(r, "koChance", 0);
             int color = max <= 0 ? C_DIM : Names.koColor(n, chance);
+            // Barre de dégâts : foncé = dégâts minimum, clair = jusqu'au maximum (100 % = barre pleine)
+            int maxW = (int) Math.round(barW * Math.min(100, max) / 100.0);
+            int minW = (int) Math.round(barW * Math.min(100, min) / 100.0);
+            if (maxW > 0) {
+                Theme.rect(g, barX, ry + 1, Math.max(2, maxW), h - 2, 2, Theme.withAlpha(color, 0x38));
+            }
+            if (minW > 0) {
+                Theme.rect(g, barX, ry + 1, Math.max(2, minW), h - 2, 2, Theme.withAlpha(color, 0x6A));
+            }
             String dmg = max <= 0 ? "0%" : String.format(Locale.ROOT, "%.1f–%.1f%%", min, max);
-            textRight(dmg, dmgRight, ty, color);
-            textRight(Names.koText(n, chance), koRight, ty, color);
-            tipArea(mx, my, dmgRight - 64, ry, koRight - (dmgRight - 64), h, tip);
+            if (font.width(dmg) > barW - 4) {
+                dmg = String.format(Locale.ROOT, "%.0f–%.0f%%", min, max);
+            }
+            textRight(dmg, dmgRight - 3, ty, max <= 0 ? C_DIM : Theme.lighten(color, 0.35F));
+            String ko = Names.koText(n, chance);
+            if (!ko.isEmpty()) {
+                int koW = Math.min(koRight - dmgRight - 3, font.width(ko) + 8);
+                Theme.rect(g, koRight - koW, ry + 1, koW, h - 2, 2, Theme.darken(color, 0.62F));
+                textCenter(Ui.ellipsize(font, ko, koW - 4), koRight - koW / 2, ty, color);
+            }
+            tipArea(mx, my, barX, ry, koRight - barX, h, tip);
         }
     }
 
@@ -1033,7 +1069,7 @@ public final class FeurcalcScreen extends Screen {
             String label = Names.statLabel(i) + (nat > 0 ? "+" : nat < 0 ? "−" : "");
             text(label, l.x, rty, nat > 0 ? C_PLUS : nat < 0 ? C_MINUS : C_LABEL);
             Integer b = base.get(Names.STATS[i]);
-            textRight(b == null ? "?" : String.valueOf(b), l.x + COL_BASE_RIGHT, rty, 0xFFB8C4CF);
+            textRight(b == null ? "?" : String.valueOf(b), l.x + COL_BASE_RIGHT, rty, b == null ? C_DIM : Theme.statColor(b));
 
             if (stats != null && stats.has(Names.STAT_IDS[i])) {
                 int raw = stats.get(Names.STAT_IDS[i]).getAsInt();
