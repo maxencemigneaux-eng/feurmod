@@ -17,8 +17,8 @@ import net.minecraft.network.chat.Component;
 import java.util.concurrent.CompletableFuture;
 
 /**
- * /feurinfo            → ouvre l'interface avec la recherche
- * /feurinfo dracaufeu  → ouvre directement la fiche (noms FR/EN ou numéro, avec autocomplétion)
+ * /feurwiki (ou /feurinfo)            → ouvre l'interface avec la recherche
+ * /feurwiki dracaufeu                 → ouvre directement la fiche (noms FR/EN ou numéro, avec autocomplétion)
  *
  * Commande 100 % côté client : elle marche sur n'importe quel serveur, même sans le mod.
  */
@@ -33,7 +33,12 @@ public final class FeurinfoClient implements ClientModInitializer {
     }
 
     private static void register(CommandDispatcher<FabricClientCommandSource> dispatcher) {
-        dispatcher.register(ClientCommandManager.literal("feurinfo")
+        register(dispatcher, "feurwiki");
+        register(dispatcher, "feurinfo"); // ancien nom, gardé pour l'habitude
+    }
+
+    private static void register(CommandDispatcher<FabricClientCommandSource> dispatcher, String name) {
+        dispatcher.register(ClientCommandManager.literal(name)
                 .executes(context -> {
                     open(context.getSource().getClient(), null);
                     return 1;

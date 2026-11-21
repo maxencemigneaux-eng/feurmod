@@ -105,6 +105,17 @@ public final class FeurcalcClient implements ClientModInitializer {
         openScreen(client, parent);
     }
 
+    /** Ouvre le calculateur avec ce Pokémon en face, avec un set précis (onglet "Set courant" de FeurWiki). */
+    public static void openWithSet(Minecraft client, Species species, FormData form, SmogonSets.SmogonSet set,
+                                   @Nullable Screen parent) {
+        CalcState state = CalcState.INSTANCE;
+        state.fillFromParty();
+        MonState opponent = MonState.fromForm(species, form, MonState.defaultLevel(100));
+        SmogonSets.apply(opponent, set);
+        state.b.copyFrom(opponent);
+        openScreen(client, parent);
+    }
+
     private static void registerCommand(CommandDispatcher<FabricClientCommandSource> dispatcher) {
         dispatcher.register(ClientCommandManager.literal("feurcalc")
                 .executes(context -> {

@@ -1,5 +1,5 @@
 {
-  "feurinfo.title": "Feurinfo",
+  "feurinfo.title": "FeurWiki",
   "feurinfo.search.hint": "Chercher un Pokémon...",
   "feurinfo.not_found": "Pokémon introuvable : %s",
   "feurinfo.empty": "Tape le nom d'un Pokémon dans la recherche en haut à droite.",
@@ -306,5 +306,7 @@
   "feurinfo.weak.no_ability": "Ses talents ne changent rien à ces dégâts.",
   "feurinfo.open_calc": "Feurcalc ⚔",
   "feurinfo.open_calc.tip": "Ouvrir le calculateur de dégâts avec ce Pokémon en face (avec son set le plus joué)",
-  "feurinfo.tab.evos": "Évos"
+  "feurinfo.tab.evos": "Évolutions",
+  "feurinfo.tab.moves": "Attaques",
+  "feurinfo.tab.set": "Set courant"
 }

@@ -61,11 +61,11 @@ public final class FeurinfoScreen extends Screen {
     private static final int TYPE_COL_W = 24;
 
     private enum Tab {
-        LEVEL("level"), TM("tm"), EGG("egg"), TUTOR("tutor"), EVOLUTION("evolution"), OTHER("other"), EVOS("evos"), WEAK("weak"), SPAWN("spawn");
+        MOVES("moves"), WEAK("weak"), EVOS("evos"), SET("set"), SPAWN("spawn");
 
-        /** Onglet qui affiche une liste d'attaques (pas Évos / Faiblesses / Spawn). */
+        /** Onglet qui affiche la liste d'attaques. */
         boolean moves() {
-            return this != EVOS && this != WEAK && this != SPAWN;
+            return this == MOVES;
         }
 
         final String key;
@@ -75,8 +75,17 @@ public final class FeurinfoScreen extends Screen {
         }
     }
 
-    private record Row(String level, MoveTemplate move) {
+    /**
+     * Une attaque du Pokémon, avec toutes ses façons de l'apprendre ("Niv. 1, CT, Tuteur").
+     * sortLevel : 1er niveau d'apprentissage (Integer.MAX_VALUE si pas par niveau) ; methods : masque de METHOD_*.
+     */
+    private record Row(String level, MoveTemplate move, int sortLevel, int methods) {
     }
+
+    // Façons d'apprendre une attaque (filtres "Niveau", "CT"...)
+    private static final int M_LEVEL = 1, M_TM = 2, M_EGG = 4, M_TUTOR = 8, M_EVO = 16, M_OTHER = 32;
+    private static final int[] METHOD_BITS = {M_LEVEL, M_TM, M_EGG, M_TUTOR, M_EVO, M_OTHER};
+    private static final String[] METHOD_KEYS = {"level", "tm", "egg", "tutor", "evolution", "other"};
 
     private record AbilityLine(AbilityTemplate template, boolean hidden) {
     }
@@ -91,8 +100,15 @@ public final class FeurinfoScreen extends Screen {
     private final List<FormData> forms = new ArrayList<>();
     private int formIndex;
     private boolean shiny;
-    private Tab tab = Tab.LEVEL;
-    private final Map<Tab, List<Row>> rows = new EnumMap<>(Tab.class);
+    private Tab tab = Tab.MOVES;
+    private final List<Row> allRows = new ArrayList<>();
+    /** Filtres de la liste d'attaques (0 / vide = tout). */
+    private int methodFilter;
+    private int categoryFilter; // 1 = physique, 2 = spéciale, 4 = statut
+    private final Set<String> typeFilter = new HashSet<>();
+    private final Map<Integer, FlatButton> methodButtons = new java.util.HashMap<>();
+    private final FlatButton[] categoryButtons = new FlatButton[3];
+    private int typeRowY;
     private final List<AbilityLine> abilities = new ArrayList<>();
     private int scroll;
     private String moveFilterText = "";
@@ -146,9 +162,6 @@ public final class FeurinfoScreen extends Screen {
 
     public FeurinfoScreen(@Nullable Species species) {
         super(Component.translatable("feurinfo.title"));
-        for (Tab t : Tab.values()) {
-            rows.put(t, new ArrayList<>());
-        }
         if (species != null) {
             setSpecies(species);
         }
@@ -170,9 +183,10 @@ public final class FeurinfoScreen extends Screen {
         }
         formIndex = 0;
         shiny = false;
-        if (tab.moves()) {
-            tab = Tab.LEVEL; // on reste sur "Spawn" ou "Faiblesses" si on y était
-        }
+        methodFilter = 0;
+        categoryFilter = 0;
+        typeFilter.clear();
+        setIndex = 0;
         spawnScroll = 0;
         evoScroll = 0;
         evoChains = null;
@@ -186,9 +200,7 @@ public final class FeurinfoScreen extends Screen {
     }
 
     private void computeRows() {
-        for (Tab t : Tab.values()) {
-            rows.get(t).clear();
-        }
+        allRows.clear();
         scroll = 0;
         if (species == null) {
             return;
@@ -196,33 +208,51 @@ public final class FeurinfoScreen extends Screen {
         computeAbilities();
         Learnset learnset = form().getMoves(); // les formes sans attaques propres reprennent celles de l'espèce
 
-        String evolutionLabel = I18n.get("feurinfo.level.evolution");
-        Map<Integer, List<MoveTemplate>> byLevel = new TreeMap<>(learnset.getLevelUpMoves());
-        for (Map.Entry<Integer, List<MoveTemplate>> entry : byLevel.entrySet()) {
-            int level = entry.getKey();
+        // Une ligne par attaque, avec toutes ses méthodes d'apprentissage
+        Map<String, MoveTemplate> moves = new java.util.LinkedHashMap<>();
+        Map<String, java.util.TreeSet<Integer>> levels = new java.util.HashMap<>();
+        Map<String, Integer> masks = new java.util.HashMap<>();
+        java.util.function.BiConsumer<MoveTemplate, Integer> add = (move, bit) -> {
+            moves.putIfAbsent(move.getName(), move);
+            masks.merge(move.getName(), bit, (x, y) -> x | y);
+        };
+        for (Map.Entry<Integer, List<MoveTemplate>> entry : new TreeMap<>(learnset.getLevelUpMoves()).entrySet()) {
             for (MoveTemplate move : entry.getValue()) {
-                rows.get(Tab.LEVEL).add(new Row(level <= 0 ? evolutionLabel : String.valueOf(level), move));
+                add.accept(move, M_LEVEL);
+                levels.computeIfAbsent(move.getName(), k -> new java.util.TreeSet<>()).add(Math.max(0, entry.getKey()));
             }
         }
-        addSorted(Tab.TM, learnset.getTmMoves());
-        addSorted(Tab.EGG, learnset.getEggMoves());
-        addSorted(Tab.TUTOR, learnset.getTutorMoves());
-        addSorted(Tab.EVOLUTION, learnset.getEvolutionMoves());
-        List<MoveTemplate> other = new ArrayList<>();
-        other.addAll(learnset.getLegacyMoves());
-        other.addAll(learnset.getSpecialMoves());
-        other.addAll(learnset.getFormChangeMoves());
-        addSorted(Tab.OTHER, other);
+        learnset.getTmMoves().forEach(m -> add.accept(m, M_TM));
+        learnset.getEggMoves().forEach(m -> add.accept(m, M_EGG));
+        learnset.getTutorMoves().forEach(m -> add.accept(m, M_TUTOR));
+        learnset.getEvolutionMoves().forEach(m -> add.accept(m, M_EVO));
+        learnset.getLegacyMoves().forEach(m -> add.accept(m, M_OTHER));
+        learnset.getSpecialMoves().forEach(m -> add.accept(m, M_OTHER));
+        learnset.getFormChangeMoves().forEach(m -> add.accept(m, M_OTHER));
 
-        spawnScroll = 0;
-        if (tab.moves() && rows.get(tab).isEmpty()) {
-            for (Tab t : Tab.values()) {
-                if (!rows.get(t).isEmpty()) {
-                    tab = t;
-                    break;
+        for (Map.Entry<String, MoveTemplate> e : moves.entrySet()) {
+            int mask = masks.getOrDefault(e.getKey(), 0);
+            java.util.TreeSet<Integer> lv = levels.get(e.getKey());
+            List<String> parts = new ArrayList<>();
+            if (lv != null && !lv.isEmpty()) {
+                List<String> nums = new ArrayList<>();
+                for (int l : lv) {
+                    nums.add(l <= 0 ? I18n.get("feurinfo.level.evolution") : String.valueOf(l));
+                }
+                parts.add(I18n.get("feurinfo.method.level", String.join("/", nums)));
+            }
+            for (int i = 1; i < METHOD_BITS.length; i++) {
+                if ((mask & METHOD_BITS[i]) != 0) {
+                    parts.add(I18n.get("feurinfo.method." + METHOD_KEYS[i]));
                 }
             }
+            int sortLevel = lv == null || lv.isEmpty() ? Integer.MAX_VALUE : lv.first();
+            allRows.add(new Row(String.join(", ", parts), e.getValue(), sortLevel, mask));
         }
+        // Par niveau d'abord, puis le reste par ordre alphabétique
+        allRows.sort(Comparator.comparingInt(Row::sortLevel)
+                .thenComparing(r -> r.move().getDisplayName().getString()));
+        spawnScroll = 0;
         applyFilter();
     }
 
@@ -250,7 +280,28 @@ public final class FeurinfoScreen extends Screen {
     /** Hauteur du bloc talents + stats (sous le modèle). */
     private int infoHeight() {
         int abilityLines = Math.max(3, abilities.size());
-        return INFO_ROW + abilityLines * INFO_ROW + 6 + INFO_ROW + 6 * INFO_ROW + INFO_ROW + 2;
+        int weak = weakGroups().size();
+        return INFO_ROW + abilityLines * INFO_ROW + 6 + INFO_ROW + 6 * INFO_ROW + INFO_ROW + 2
+                + (weak == 0 ? 0 : 6 + INFO_ROW + weak * (INFO_ROW + 2));
+    }
+
+    /** Résumé des faiblesses (sans talent) : multiplicateur → types, du pire au meilleur. */
+    private List<Map.Entry<Double, List<String>>> weakGroups() {
+        List<Map.Entry<Double, List<String>>> out = new ArrayList<>();
+        if (species == null) return out;
+        List<String> defense = new ArrayList<>();
+        for (ElementalType t : form().getTypes()) {
+            defense.add(t.getName().toLowerCase());
+        }
+        Map<String, Double> chart = TypeChart.defensive(defense);
+        for (double mult : new double[]{4, 2, 0.5, 0.25, 0}) {
+            List<String> types = new ArrayList<>();
+            for (Map.Entry<String, Double> e : chart.entrySet()) {
+                if (Math.abs(e.getValue() - mult) < 0.001) types.add(e.getKey());
+            }
+            if (!types.isEmpty()) out.add(Map.entry(mult, types));
+        }
+        return out;
     }
 
     // --- Recherche d'attaque dans la liste du Pokémon ---
@@ -259,43 +310,37 @@ public final class FeurinfoScreen extends Screen {
         return !SpeciesLookup.normalize(moveFilterText).isEmpty();
     }
 
-    /** Quand on cherche, on regarde dans TOUTES les catégories (Niveau, CT, Œufs...). */
+
+    /** Recherche + filtres (méthode, catégorie, type). */
     private void applyFilter() {
         filteredRows.clear();
         String query = SpeciesLookup.normalize(moveFilterText);
-        if (query.isEmpty()) {
-            return;
-        }
-        for (Tab t : Tab.values()) {
-            for (Row row : rows.get(t)) {
-                MoveTemplate move = row.move();
+        for (Row row : allRows) {
+            MoveTemplate move = row.move();
+            if (methodFilter != 0 && (row.methods() & methodFilter) == 0) continue;
+            if (categoryFilter != 0 && (categoryBit(move.getDamageCategory()) & categoryFilter) == 0) continue;
+            if (!typeFilter.isEmpty() && !typeFilter.contains(move.getElementalType().getName().toLowerCase())) continue;
+            if (!query.isEmpty()) {
                 String local = SpeciesLookup.normalize(move.getDisplayName().getString());
                 String english = SpeciesLookup.normalize(move.getName());
                 String type = SpeciesLookup.normalize(move.getElementalType().getDisplayName().getString());
                 String category = SpeciesLookup.normalize(move.getDamageCategory().getDisplayName().getString());
-                if (local.contains(query) || english.contains(query) || type.equals(query) || category.equals(query)) {
-                    filteredRows.add(new Row(methodLabel(t, row), move));
-                }
+                if (!(local.contains(query) || english.contains(query) || type.equals(query) || category.equals(query))) continue;
             }
+            filteredRows.add(row);
         }
     }
 
-    private static String methodLabel(Tab t, Row row) {
-        return switch (t) {
-            case LEVEL -> row.level().chars().allMatch(Character::isDigit)
-                    ? I18n.get("feurinfo.method.level", row.level())
-                    : row.level();
-            case TM -> I18n.get("feurinfo.method.tm");
-            case EGG -> I18n.get("feurinfo.method.egg");
-            case TUTOR -> I18n.get("feurinfo.method.tutor");
-            case EVOLUTION -> I18n.get("feurinfo.method.evolution");
-            case OTHER -> I18n.get("feurinfo.method.other");
-            case EVOS, WEAK, SPAWN -> "";
+    private static int categoryBit(DamageCategory category) {
+        return switch (category.getName().toLowerCase()) {
+            case "physical" -> 1;
+            case "special" -> 2;
+            default -> 4;
         };
     }
 
     private List<Row> currentRows() {
-        return filtering() ? filteredRows : rows.get(tab);
+        return filteredRows;
     }
 
     private void onMoveFilterChanged(String text) {
@@ -305,31 +350,8 @@ public final class FeurinfoScreen extends Screen {
         updateTabButtons();
     }
 
-    private void addSorted(Tab target, Collection<MoveTemplate> moves) {
-        List<MoveTemplate> list = new ArrayList<>(new LinkedHashSet<>(moves));
-        list.sort(Comparator.comparing(move -> move.getDisplayName().getString()));
-        for (MoveTemplate move : list) {
-            rows.get(target).add(new Row("", move));
-        }
-    }
-
     private List<Tab> visibleTabs() {
-        List<Tab> visible = new ArrayList<>();
-        for (Tab t : Tab.values()) {
-            if (!rows.get(t).isEmpty()) {
-                visible.add(t);
-            }
-        }
-        visible.remove(Tab.SPAWN);
-        visible.remove(Tab.WEAK);
-        visible.remove(Tab.EVOS);
-        if (visible.isEmpty()) {
-            visible.add(Tab.LEVEL);
-        }
-        visible.add(Tab.EVOS); // toujours là : chaîne d'évolution
-        visible.add(Tab.WEAK); // toujours là : faiblesses et résistances
-        visible.add(Tab.SPAWN); // toujours là, en dernier
-        return visible;
+        return List.of(Tab.values());
     }
 
     /** Nom de forme traduit par Cobblemon ("Forme d'Alola", "Méga-Dracaufeu X"...). */
@@ -367,11 +389,19 @@ public final class FeurinfoScreen extends Screen {
         formRowY = modelY + modelH + 4;
         infoY = formRowY + 24 + 2;
         filterY = panelY + 30;
-        listTop = panelY + 62;
+        typeRowY = panelY + 50;
+        listTop = panelY + 82;
         listBottom = panelY + panelH - 5;
 
+        // En haut à droite : recherche, Réglages ⚙, Fermer ✕
+        int closeX = width - MARGIN - 16;
+        int gearX = closeX - 4 - 16;
+        addRenderableWidget(new FlatButton(closeX, SEARCH_Y, 16, 16, Component.literal("✕"), this::onClose));
+        FlatButton gear = addRenderableWidget(new FlatButton(gearX, SEARCH_Y, 16, 16, Component.literal("⚙"),
+                () -> minecraft.setScreen(new com.goat.feurmod.ui.SettingsScreen(this))));
+        gear.setTooltip(Tooltip.create(Component.literal("Réglages Feurmod")));
         searchW = Math.min(170, width / 3);
-        searchX = width - MARGIN - searchW;
+        searchX = gearX - 6 - searchW;
         search = Theme.fieldBox(font, searchX, SEARCH_Y, searchW, 16, Component.translatable("feurinfo.search.hint"));
         search.setHint(Component.translatable("feurinfo.search.hint").withStyle(s -> s.withColor(Theme.MUTED)));
         search.setMaxLength(40);
@@ -398,18 +428,47 @@ public final class FeurinfoScreen extends Screen {
         int rowY = formRowY;
         if (forms.size() > 1) {
             addRenderableWidget(new FlatButton(leftX + 5, rowY + 2, 18, 18, Component.literal("◀"), () -> changeForm(-1)));
-            addRenderableWidget(new FlatButton(leftX + leftW - 47, rowY + 2, 18, 18, Component.literal("▶"), () -> changeForm(1)));
+            addRenderableWidget(new FlatButton(leftX + leftW - 23, rowY + 2, 18, 18, Component.literal("▶"), () -> changeForm(1)));
         }
-        // Petit bouton shiny à droite de la ligne des formes
-        shinyButton = addRenderableWidget(new FlatButton(leftX + leftW - 25, rowY + 2, 20, 18, shinyLabel(), this::toggleShiny)
+        // Normal / Shiny : onglets en haut du modèle 3D
+        Component normalLabel = Component.literal("Normal");
+        Component shinyText = Component.literal("Shiny");
+        int nw = font.width(normalLabel) + 10;
+        int sw = font.width(shinyText) + 10;
+        FlatButton normalBtn = addRenderableWidget(new FlatButton(modelX + 4, modelY + 4, nw, 13, normalLabel, () -> setShiny(false)));
+        shinyButton = addRenderableWidget(new FlatButton(modelX + 4 + nw + 2, modelY + 4, sw, 13, shinyText, () -> setShiny(true))
                 .accent(0xFF8A6A1E));
+        normalBtn.selected = !shiny;
         shinyButton.selected = shiny;
-        shinyButton.setTooltip(shinyTooltip());
+        shinyNormalButton = normalBtn;
 
-        // Onglets dessinés (Niveau, CT, Œufs, Tuteur, Évolution, Autres, Spawn)
+        java.util.Arrays.fill(categoryButtons, null);
+        // Filtres par catégorie (physique / spéciale / statut), à droite de la barre d'onglets
+        String[] catLabels = {"Phys.", "Spé.", "Stat."};
+        int[] catColors = {0xFF8A4A2A, 0xFF34508A, 0xFF5A5A5A};
+        int catW = 0;
+        for (String l : catLabels) {
+            catW = Math.max(catW, font.width(l) + 10);
+        }
+        int catTotal = rightW >= 360 ? catW * 3 + 4 + 8 : 0;
+        if (catTotal > 0) {
+            int cx = rightX + rightW - 5 - catW * 3 - 4;
+            for (int i = 0; i < 3; i++) {
+                final int bit = 1 << i;
+                FlatButton b = new FlatButton(cx + i * (catW + 2), panelY + 5, catW, 16, Component.literal(catLabels[i]), () -> {
+                    categoryFilter ^= bit;
+                    onFiltersChanged();
+                }).accent(catColors[i]);
+                b.setTooltip(Tooltip.create(Component.literal("Ne garder que les attaques de cette catégorie (re-clic : enlever)")));
+                categoryButtons[i] = addRenderableWidget(b);
+            }
+        }
+
+        // Onglets : Attaques, Faiblesses, Évolutions, Set courant, Spawn
         List<Tab> visible = visibleTabs();
         int gap = 2;
-        int tabW = Math.max(30, (rightW - 10 - gap * (visible.size() - 1)) / visible.size());
+        int tabsW = rightW - 10 - catTotal;
+        int tabW = Math.max(30, (tabsW - gap * (visible.size() - 1)) / visible.size());
         int tabX = rightX + 5;
         for (Tab t : visible) {
             FlatButton button = new FlatButton(tabX, panelY + 5, tabW, 16, Component.translatable("feurinfo.tab." + t.key),
@@ -418,18 +477,52 @@ public final class FeurinfoScreen extends Screen {
             tabX += tabW + gap;
         }
 
-        // Barre de recherche d'attaque (cherche dans toutes les catégories du Pokémon)
+        // Barre de recherche d'attaque, puis les filtres de méthode (Niveau, CT, Tuteur...) présents chez ce Pokémon
         moveFilter = Theme.fieldBox(font, rightX + 6, filterY, filterW(), 16, Component.translatable("feurinfo.filter.hint"));
         moveFilter.setHint(Component.translatable("feurinfo.filter.hint").withStyle(s -> s.withColor(Theme.MUTED)));
         moveFilter.setMaxLength(40);
         moveFilter.setValue(moveFilterText);
         moveFilter.setResponder(this::onMoveFilterChanged);
         addRenderableWidget(moveFilter);
+
+        methodButtons.clear();
+        int present = 0;
+        for (Row r : allRows) {
+            present |= r.methods();
+        }
+        int mx = rightX + 6 + filterW() + 6;
+        int countW = 72;
+        for (int i = 0; i < METHOD_BITS.length; i++) {
+            final int bit = METHOD_BITS[i];
+            if ((present & bit) == 0) {
+                continue;
+            }
+            Component label = Component.translatable("feurinfo.tab." + METHOD_KEYS[i]);
+            int w = font.width(label) + 10;
+            if (mx + w > rightX + rightW - countW) {
+                break;
+            }
+            FlatButton b = new FlatButton(mx, filterY, w, 16, label, () -> {
+                methodFilter ^= bit;
+                onFiltersChanged();
+            });
+            b.setTooltip(Tooltip.create(Component.literal("Ne garder que les attaques apprises comme ça (re-clic : enlever)")));
+            methodButtons.put(bit, addRenderableWidget(b));
+            mx += w + 3;
+        }
         updateTabButtons();
     }
 
     private int filterW() {
-        return rightW - 12 - 72;
+        return Mth.clamp(rightW * 30 / 100, 90, 170);
+    }
+
+    @Nullable private FlatButton shinyNormalButton;
+
+    private void onFiltersChanged() {
+        scroll = 0;
+        applyFilter();
+        updateTabButtons();
     }
 
     private static boolean inRect(double mx, double my, int x, int y, int w, int h) {
@@ -485,11 +578,12 @@ public final class FeurinfoScreen extends Screen {
         }
     }
 
-    private void toggleShiny() {
-        shiny = !shiny;
+    private void setShiny(boolean value) {
+        shiny = value;
         shinyButton.selected = shiny;
-        shinyButton.setMessage(shinyLabel());
-        shinyButton.setTooltip(shinyTooltip());
+        if (shinyNormalButton != null) {
+            shinyNormalButton.selected = !shiny;
+        }
         replaceModel();
     }
 
@@ -507,8 +601,19 @@ public final class FeurinfoScreen extends Screen {
     private void updateTabButtons() {
         boolean searching = filtering();
         tabButtons.forEach((t, button) -> button.selected = !searching && t == tab);
+        boolean moves = tab.moves() || searching;
         if (moveFilter != null) {
-            moveFilter.visible = tab.moves() || searching; // pas de recherche d'attaque dans Spawn / Faiblesses
+            moveFilter.visible = moves; // pas de recherche d'attaque dans Spawn / Faiblesses...
+        }
+        methodButtons.forEach((bit, b) -> {
+            b.visible = moves;
+            b.selected = (methodFilter & bit) != 0;
+        });
+        for (int i = 0; i < 3; i++) {
+            if (categoryButtons[i] != null) {
+                categoryButtons[i].visible = moves;
+                categoryButtons[i].selected = (categoryFilter & (1 << i)) != 0;
+            }
         }
     }
 
@@ -571,7 +676,10 @@ public final class FeurinfoScreen extends Screen {
             }
             return true;
         }
-        if (species != null && !showingEvos() && !showingWeak() && !showingSpawns() && clickMoveTable(mouseX, mouseY, button)) {
+        if (species != null && showingMoves() && clickMoveTable(mouseX, mouseY, button)) {
+            return true;
+        }
+        if (species != null && showingSet() && clickSet(mouseX, mouseY, button)) {
             return true;
         }
         return super.mouseClicked(mouseX, mouseY, button);
@@ -722,6 +830,8 @@ public final class FeurinfoScreen extends Screen {
             drawSpawns(graphics, mouseX, mouseY);
         } else if (showingEvos()) {
             drawEvos(graphics, mouseX, mouseY);
+        } else if (showingSet()) {
+            drawSet(graphics, mouseX, mouseY);
         } else if (showingWeak()) {
             drawWeak(graphics, mouseX, mouseY);
         } else {
@@ -736,6 +846,8 @@ public final class FeurinfoScreen extends Screen {
             g.drawString(font, title.copy().withStyle(ChatFormatting.BOLD), x, 11, Theme.TEXT, false);
             return;
         }
+        g.drawString(font, title.copy().withStyle(ChatFormatting.BOLD), x, 11, Theme.ACCENT, false);
+        x += font.width(title.copy().withStyle(ChatFormatting.BOLD)) + 8;
         String number = String.format("#%04d", species.getNationalPokedexNumber());
         g.drawString(font, number, x, 11, Theme.MUTED, false);
         x += font.width(number) + 6;
@@ -834,6 +946,30 @@ public final class FeurinfoScreen extends Screen {
         graphics.drawString(font, Component.translatable("feurinfo.stat.total"), x0, totalY, Theme.TEXT_2, false);
         drawRight(graphics, Component.literal(String.valueOf(total)), valueRight, totalY, Theme.GOLD);
 
+        // Faiblesses en bref (le détail avec les talents est dans l'onglet Faiblesses)
+        List<Map.Entry<Double, List<String>>> weak = weakGroups();
+        if (!weak.isEmpty()) {
+            int wy = totalY + INFO_ROW + 6;
+            Theme.divider(graphics, x0 - 3, wy - 4, x1 - x0 + 6);
+            graphics.drawString(font, Component.translatable("feurinfo.tab.weak"), x0 - 1, wy, Theme.LABEL, false);
+            wy += INFO_ROW;
+            for (Map.Entry<Double, List<String>> group : weak) {
+                double mult = group.getKey();
+                String label = mult == 0 ? "×0" : mult == 0.5 ? "×½" : mult == 0.25 ? "×¼" : "×" + (int) mult;
+                int color = mult >= 4 ? 0xFFFF5F5F : mult >= 2 ? 0xFFFF9A5A : mult == 0 ? 0xFF8AB4FF : 0xFF7FE08A;
+                graphics.drawString(font, label, x0, wy + 1, color, false);
+                int ix = x0 + 18;
+                for (String id : group.getValue()) {
+                    ElementalType type = elementalType(id);
+                    if (type != null && ix + 10 <= x1) {
+                        drawTypeIcon(graphics, type, ix, wy, 10);
+                        ix += 12;
+                    }
+                }
+                wy += INFO_ROW + 2;
+            }
+        }
+
         if (hoveredAbility != null) {
             List<FormattedCharSequence> lines = new ArrayList<>();
             lines.add(Component.literal(abilityName(hoveredAbility.template())).withStyle(ChatFormatting.BOLD).getVisualOrderText());
@@ -853,22 +989,27 @@ public final class FeurinfoScreen extends Screen {
         boolean searching = filtering();
         int x0 = rightX + 7;
         int x1 = rightX + rightW - 9;
-        boolean showLevel = searching || tab == Tab.LEVEL;
+        boolean showLevel = true;
         boolean showCategory = rightW >= 330;
 
+        // Filtre par type : une icône par type (re-clic : enlever)
+        drawTypeFilter(graphics, x0, x1, mouseX, mouseY);
+
         // Colonnes, de droite à gauche
-        int ppRight = x1 - 2;
+        int prioRight = x1 - 2;
+        int ppRight = prioRight - 28;
         int accRight = ppRight - 24;
         int powRight = accRight - 34;
         int catX = powRight - 34 - 58;
         int typeX = (showCategory ? catX : powRight - 34) - TYPE_COL_W - 2;
-        int nameX = x0 + 2 + (showLevel ? (searching ? 48 : 26) : 0);
+        int methodW = Mth.clamp((typeX - x0) * 36 / 100, 50, 110);
+        int nameX = x0 + 2 + methodW;
 
         // Nombre d'attaques, à droite de la barre de recherche
         Component count = Component.translatable("feurinfo.moves_count", list.size());
         drawRight(graphics, count, x1, filterY + 4, searching ? Theme.GOLD : Theme.TEXT_2);
 
-        int headerY = panelY + 50;
+        int headerY = panelY + 70;
         // Géométrie des colonnes, pour les clics (tri, filtre par type / catégorie)
         hdrY = headerY;
         hdrX0 = x0;
@@ -878,9 +1019,10 @@ public final class FeurinfoScreen extends Screen {
         hdrPowRight = powRight;
         hdrAccRight = accRight;
         hdrPpRight = ppRight;
+        hdrPrioRight = prioRight;
         hdrShowLevel = showLevel;
         if (showLevel) {
-            header(graphics, Component.translatable(searching ? "feurinfo.col.method" : "feurinfo.col.level"), SortCol.LEVEL, x0 + 2, headerY, false, mouseX, mouseY);
+            header(graphics, Component.translatable("feurinfo.col.method"), SortCol.LEVEL, x0 + 2, headerY, false, mouseX, mouseY);
         }
         header(graphics, Component.translatable("feurinfo.col.name"), SortCol.NAME, nameX, headerY, false, mouseX, mouseY);
         header(graphics, Component.translatable("feurinfo.col.type"), SortCol.TYPE, typeX, headerY, false, mouseX, mouseY);
@@ -890,6 +1032,7 @@ public final class FeurinfoScreen extends Screen {
         header(graphics, Component.translatable("feurinfo.col.power"), SortCol.POW, powRight, headerY, true, mouseX, mouseY);
         header(graphics, Component.translatable("feurinfo.col.accuracy"), SortCol.ACC, accRight, headerY, true, mouseX, mouseY);
         header(graphics, Component.translatable("feurinfo.col.pp"), SortCol.PP, ppRight, headerY, true, mouseX, mouseY);
+        header(graphics, Component.literal("Prio"), SortCol.PRIO, prioRight, headerY, true, mouseX, mouseY);
         Theme.divider(graphics, x0 - 2, listTop - 3, x1 - x0 + 4);
 
         if (list.isEmpty()) {
@@ -941,7 +1084,7 @@ public final class FeurinfoScreen extends Screen {
             int y = listTop + i * ROW_H;
             int textY = y + (ROW_H - 1 - 8) / 2;
             if (showLevel) {
-                graphics.drawString(font, row.level(), x0 + 2, textY, Theme.GOLD, false);
+                graphics.drawString(font, Theme.ellipsize(font, row.level(), methodW - 6), x0 + 2, textY, Theme.GOLD, false);
             }
             String name = Theme.ellipsize(font, move.getDisplayName().getString(), typeX - nameX - 4);
             graphics.drawString(font, name, nameX, textY, Theme.TEXT, false);
@@ -956,6 +1099,10 @@ public final class FeurinfoScreen extends Screen {
             drawRight(graphics, Component.literal(accuracy > 0 && accuracy <= 100 ? (int) accuracy + "%" : "—"), accRight, textY,
                     accuracy > 0 && accuracy <= 100 ? Theme.TEXT_2 : Theme.MUTED);
             drawRight(graphics, Component.literal(String.valueOf(move.getPp())), ppRight, textY, Theme.TEXT_2);
+            int prio = move.getPriority();
+            if (prio != 0) {
+                drawRight(graphics, Component.literal((prio > 0 ? "+" : "") + prio), prioRight, textY, prio > 0 ? Theme.GOOD : Theme.BAD);
+            }
         }
         graphics.disableScissor();
 
@@ -997,11 +1144,11 @@ public final class FeurinfoScreen extends Screen {
     // Tableau d'attaques : tri par colonne (clic sur l'en-tête) et filtres rapides
     // =======================================================================================
 
-    private enum SortCol { NONE, LEVEL, NAME, TYPE, CAT, POW, ACC, PP }
+    private enum SortCol { NONE, LEVEL, NAME, TYPE, CAT, POW, ACC, PP, PRIO }
 
     private SortCol sortCol = SortCol.NONE;
     private boolean sortDesc;
-    private int hdrY = -1000, hdrX0, hdrNameX, hdrTypeX, hdrCatX, hdrPowRight, hdrAccRight, hdrPpRight;
+    private int hdrY = -1000, hdrX0, hdrNameX, hdrTypeX, hdrCatX, hdrPowRight, hdrAccRight, hdrPpRight, hdrPrioRight;
     private boolean hdrShowLevel;
 
     /** Lignes affichées : celles de l'onglet (ou de la recherche), triées si une colonne est choisie. */
@@ -1011,13 +1158,14 @@ public final class FeurinfoScreen extends Screen {
             return base;
         }
         Comparator<Row> cmp = switch (sortCol) {
-            case LEVEL -> Comparator.comparingInt(r -> levelNumber(r.level()));
+            case LEVEL -> Comparator.comparingInt(Row::sortLevel);
             case NAME -> Comparator.comparing(r -> r.move().getDisplayName().getString());
             case TYPE -> Comparator.comparing(r -> r.move().getElementalType().getDisplayName().getString());
             case CAT -> Comparator.comparing(r -> r.move().getDamageCategory().getDisplayName().getString());
             case POW -> Comparator.comparingDouble(r -> r.move().getPower());
             case ACC -> Comparator.comparingDouble(r -> r.move().getAccuracy() <= 0 ? 101 : r.move().getAccuracy());
             case PP -> Comparator.comparingInt(r -> r.move().getPp());
+            case PRIO -> Comparator.comparingInt(r -> r.move().getPriority());
             case NONE -> null;
         };
         List<Row> sorted = new ArrayList<>(base);
@@ -1051,6 +1199,20 @@ public final class FeurinfoScreen extends Screen {
     /** Clic dans le tableau : en-tête = tri ; icône de type / catégorie d'une ligne = filtre. */
     private boolean clickMoveTable(double mx, double my, int button) {
         if (hdrY < 0) return false;
+        if (my >= typeRowY && my < typeRowY + typeIconSize + 2) {
+            for (int i = 0; i < typeIconX.length; i++) {
+                if (mx >= typeIconX[i] && mx < typeIconX[i] + typeIconSize) {
+                    String id = TypeChart.TYPES[i];
+                    if (button == 1 || (typeFilter.size() == 1 && typeFilter.contains(id))) {
+                        typeFilter.clear(); // clic droit (ou re-clic) : tous les types
+                    } else if (!typeFilter.remove(id)) {
+                        typeFilter.add(id);
+                    }
+                    onFiltersChanged();
+                    return true;
+                }
+            }
+        }
         if (my >= hdrY - 2 && my < hdrY + 10) {
             SortCol col = null;
             if (hdrShowLevel && mx >= hdrX0 && mx < hdrNameX - 2) col = SortCol.LEVEL;
@@ -1060,6 +1222,7 @@ public final class FeurinfoScreen extends Screen {
             else if (mx >= hdrPowRight - 30 && mx <= hdrPowRight) col = SortCol.POW;
             else if (mx >= hdrAccRight - 30 && mx <= hdrAccRight) col = SortCol.ACC;
             else if (mx >= hdrPpRight - 20 && mx <= hdrPpRight + 2) col = SortCol.PP;
+            else if (mx >= hdrPrioRight - 24 && mx <= hdrPrioRight + 2) col = SortCol.PRIO;
             if (col == null) return false;
             if (sortCol != col) {
                 sortCol = col;
@@ -1078,14 +1241,187 @@ public final class FeurinfoScreen extends Screen {
         if (index < 0 || index >= list.size()) return false;
         MoveTemplate move = list.get(index).move();
         if (mx >= hdrTypeX && mx < hdrTypeX + TYPE_COL_W) {
-            moveFilter.setValue(move.getElementalType().getDisplayName().getString());
+            String id = move.getElementalType().getName().toLowerCase();
+            if (!typeFilter.remove(id)) {
+                typeFilter.add(id);
+            }
+            onFiltersChanged();
             return true;
         }
         if (hdrCatX > 0 && mx >= hdrCatX - 3 && mx < hdrCatX + 53) {
-            moveFilter.setValue(move.getDamageCategory().getDisplayName().getString());
+            categoryFilter ^= categoryBit(move.getDamageCategory());
+            onFiltersChanged();
             return true;
         }
         return false;
+    }
+
+    // =======================================================================================
+    // Onglet Set courant : les sets Smogon / les plus joués sur Showdown pour ce Pokémon
+    // =======================================================================================
+
+    private int setIndex;
+    private List<com.goat.feurcalc.SmogonSets.SmogonSet> setList = List.of();
+    private String setKey = "";
+    private int setPrevX, setNextX, setArrowY, setCalcX, setCalcW;
+
+    private boolean showingSet() {
+        return tab == Tab.SET && !filtering();
+    }
+
+    private List<com.goat.feurcalc.SmogonSets.SmogonSet> sets() {
+        String key = species.getResourceIdentifier() + "/" + form().showdownId() + "/" + com.goat.feurcalc.SmogonSets.status();
+        if (!key.equals(setKey)) {
+            setKey = key;
+            com.goat.feurcalc.MonState m = com.goat.feurcalc.MonState.fromForm(species, form(), 100);
+            setList = com.goat.feurcalc.SmogonSets.forMon(m);
+            com.goat.feurcalc.SmogonSets.SmogonSet best = com.goat.feurcalc.SmogonSets.best(m);
+            setIndex = best == null ? 0 : Math.max(0, setList.indexOf(best));
+        }
+        return setList;
+    }
+
+    private void drawSet(GuiGraphics g, int mouseX, int mouseY) {
+        int x0 = rightX + 7;
+        int x1 = rightX + rightW - 9;
+        int top = filterY;
+        if (com.goat.feurcalc.SmogonSets.status() != com.goat.feurcalc.SmogonSets.Status.READY) {
+            g.drawCenteredString(font, "Chargement des sets…", rightX + rightW / 2, top + 20, Theme.TEXT_2);
+            return;
+        }
+        List<com.goat.feurcalc.SmogonSets.SmogonSet> list = sets();
+        if (list.isEmpty()) {
+            g.drawCenteredString(font, "Aucun set connu pour ce Pokémon (pas joué sur Showdown)", rightX + rightW / 2, top + 20, Theme.TEXT_2);
+            return;
+        }
+        setIndex = Math.floorMod(setIndex, list.size());
+        com.goat.feurcalc.SmogonSets.SmogonSet set = list.get(setIndex);
+
+        // Sélecteur : ◀ OU · Usage Showdown (3/12) ▶            [Ouvrir dans Feurcalc ⚔]
+        setArrowY = top;
+        setPrevX = x0;
+        String calcLabel = "Ouvrir dans Feurcalc ⚔";
+        setCalcW = font.width(calcLabel) + 12;
+        setCalcX = x1 - setCalcW;
+        setNextX = setCalcX - 8 - 16;
+        boolean hp = inRect(mouseX, mouseY, setPrevX, top, 16, 16);
+        boolean hn = inRect(mouseX, mouseY, setNextX, top, 16, 16);
+        boolean hc = inRect(mouseX, mouseY, setCalcX, top, setCalcW, 16);
+        Theme.rect(g, setPrevX, top, 16, 16, 3, hp ? Theme.CARD_HOVER : Theme.CARD);
+        Theme.rect(g, setNextX, top, 16, 16, 3, hn ? Theme.CARD_HOVER : Theme.CARD);
+        Theme.rect(g, setPrevX + 20, top, setNextX - setPrevX - 24, 16, 3, Theme.FIELD);
+        Theme.rect(g, setCalcX, top, setCalcW, 16, 3, hc ? Theme.lighten(0xFF2A4F86, 0.12F) : 0xFF2A4F86);
+        g.flush();
+        g.drawCenteredString(font, "◀", setPrevX + 8, top + 4, Theme.TEXT);
+        g.drawCenteredString(font, "▶", setNextX + 8, top + 4, Theme.TEXT);
+        String label = set.fullLabel() + "  (" + (setIndex + 1) + "/" + list.size() + ")";
+        int labelW = setNextX - setPrevX - 32;
+        g.drawString(font, Theme.ellipsize(font, label, labelW), setPrevX + 24, top + 4, set.isUsage() ? Theme.GOLD : Theme.TEXT, false);
+        g.drawCenteredString(font, calcLabel, setCalcX + setCalcW / 2, top + 4, 0xFFFFFFFF);
+
+        // Le set : talent, objet, nature + EV, Téra (à gauche) et attaques (à droite), puis les autres attaques jouées
+        List<Component> lines = com.goat.feurcalc.SmogonSets.tooltip(set);
+        int cardY = top + 22;
+        int colW = (x1 - x0 - 6) / 2;
+        List<Component> info = new ArrayList<>();
+        List<Component> moves = new ArrayList<>();
+        for (int i = 1; i < lines.size(); i++) {
+            (lines.get(i).getString().startsWith("• ") ? moves : info).add(lines.get(i));
+        }
+        int cardH = Math.max(info.size(), moves.size() + 1) * 12 + 12;
+        Theme.panel(g, x0, cardY, colW, cardH, 4, Theme.CARD, Theme.PANEL_BORDER);
+        Theme.panel(g, x0 + colW + 6, cardY, colW, cardH, 4, Theme.CARD, Theme.PANEL_BORDER);
+        g.flush();
+        int y = cardY + 6;
+        for (Component c : info) {
+            for (FormattedCharSequence part : font.split(c, colW - 12)) {
+                g.drawString(font, part, x0 + 6, y, 0xFFFFFFFF, false);
+                y += 11;
+            }
+        }
+        y = cardY + 6;
+        g.drawString(font, "Attaques", x0 + colW + 12, y, Theme.LABEL, false);
+        y += 12;
+        for (Component c : moves) {
+            g.drawString(font, Theme.ellipsize(font, c.getString(), colW - 12), x0 + colW + 12, y, Theme.TEXT, false);
+            y += 12;
+        }
+
+        if (!set.moreMoves().isEmpty()) {
+            int my = cardY + cardH + 8;
+            g.drawString(font, "Autres attaques jouées", x0, my, Theme.LABEL, false);
+            my += 12;
+            int cols = Math.max(1, (x1 - x0) / 130);
+            int cw = (x1 - x0) / cols;
+            for (int i = 0; i < set.moreMoves().size(); i++) {
+                int cx = x0 + (i % cols) * cw;
+                int cy = my + (i / cols) * 11;
+                if (cy > listBottom - 10) break;
+                int pct = i < set.moreMovePcts().length ? set.moreMovePcts()[i] : -1;
+                String name = com.goat.feurcalc.Names.moveName(set.moreMoves().get(i));
+                g.drawString(font, Theme.ellipsize(font, name, cw - 40), cx, cy, Theme.TEXT_2, false);
+                if (pct >= 0) {
+                    drawRight(g, Component.literal(pct + " %"), cx + cw - 8, cy, Theme.MUTED);
+                }
+            }
+        }
+    }
+
+    private boolean clickSet(double mx, double my, int button) {
+        if (setList.isEmpty()) return false;
+        if (inRect(mx, my, setPrevX, setArrowY, 16, 16)) {
+            setIndex = Math.floorMod(setIndex - 1, setList.size());
+            return true;
+        }
+        if (inRect(mx, my, setNextX, setArrowY, 16, 16)) {
+            setIndex = Math.floorMod(setIndex + 1, setList.size());
+            return true;
+        }
+        if (inRect(mx, my, setCalcX, setArrowY, setCalcW, 16)) {
+            com.goat.feurcalc.FeurcalcClient.openWithSet(minecraft, species, form(), setList.get(Math.floorMod(setIndex, setList.size())), this);
+            return true;
+        }
+        return false;
+    }
+
+    private int[] typeIconX = new int[0];
+    private int typeIconSize = 14;
+
+    /** La rangée d'icônes de type au-dessus du tableau : clic = filtrer (plusieurs possibles), clic droit = tout. */
+    private void drawTypeFilter(GuiGraphics g, int x0, int x1, int mouseX, int mouseY) {
+        int n = TypeChart.TYPES.length;
+        int avail = x1 - x0;
+        int size = Mth.clamp((avail - (n - 1) * 3) / n, 9, 14);
+        int gap = Math.min(4, Math.max(1, (avail - n * size) / Math.max(1, n - 1)));
+        typeIconSize = size;
+        typeIconX = new int[n];
+        String hovered = null;
+        int x = x0;
+        for (int i = 0; i < n; i++) {
+            typeIconX[i] = x;
+            String id = TypeChart.TYPES[i];
+            boolean on = typeFilter.isEmpty() || typeFilter.contains(id);
+            boolean hover = mouseX >= x && mouseX < x + size && mouseY >= typeRowY && mouseY < typeRowY + size;
+            ElementalType type = elementalType(id);
+            if (typeFilter.contains(id)) {
+                Theme.rect(g, x - 2, typeRowY - 2, size + 4, size + 4, 3, Theme.withAlpha(Theme.ACCENT, 0xC0));
+            }
+            if (type != null) {
+                g.flush();
+                if (!on) {
+                    RenderSystem.setShaderColor(1F, 1F, 1F, 0.3F);
+                }
+                drawTypeIcon(g, type, x, typeRowY, size);
+                RenderSystem.setShaderColor(1F, 1F, 1F, 1F);
+                if (hover) hovered = type.getDisplayName().getString();
+            }
+            x += size + gap;
+        }
+        if (hovered != null) {
+            g.renderTooltip(font, List.of(Component.literal(hovered).getVisualOrderText(),
+                    Component.literal("Clic : filtrer · Clic droit : tous les types").withStyle(ChatFormatting.GRAY).getVisualOrderText()),
+                    mouseX, mouseY + 12);
+        }
     }
 
     // =======================================================================================
@@ -1095,6 +1431,10 @@ public final class FeurinfoScreen extends Screen {
     private List<List<EvoData.Node>> evoChains;
     private int evoScroll;
     @Nullable private EvoData.Node evoHovered;
+
+    private boolean showingMoves() {
+        return tab.moves() || filtering();
+    }
 
     private boolean showingEvos() {
         return tab == Tab.EVOS && !filtering();

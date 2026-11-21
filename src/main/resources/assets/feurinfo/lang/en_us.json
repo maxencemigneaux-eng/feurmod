@@ -1,5 +1,5 @@
 {
-  "feurinfo.title": "Feurinfo",
+  "feurinfo.title": "FeurWiki",
   "feurinfo.search.hint": "Search a Pokémon...",
   "feurinfo.not_found": "Pokémon not found: %s",
   "feurinfo.empty": "Type a Pokémon name in the search box at the top right.",
@@ -171,5 +171,7 @@
   "feurinfo.weak.no_ability": "Its abilities don't change this damage.",
   "feurinfo.open_calc": "Feurcalc ⚔",
   "feurinfo.open_calc.tip": "Open the damage calculator with this Pokémon as the opponent (with its most used set)",
-  "feurinfo.tab.evos": "Evos"
+  "feurinfo.tab.evos": "Evolutions",
+  "feurinfo.tab.moves": "Moves",
+  "feurinfo.tab.set": "Current set"
 }
