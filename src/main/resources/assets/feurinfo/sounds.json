@@ -1,0 +1,8 @@
+{
+  "wiki.roucarnage_scalpereur": {
+    "category": "master",
+    "sounds": [
+      { "name": "feurinfo:roucarnage_scalpereur", "stream": false }
+    ]
+  }
+}

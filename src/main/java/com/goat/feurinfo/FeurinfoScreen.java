@@ -173,7 +173,43 @@ public final class FeurinfoScreen extends Screen {
     // Données
     // =======================================================================================
 
+    // Son spécial quand on arrive sur la fiche de Roucarnage, Scalproie ou Scalpereur
+    private static final Set<String> SPECIAL_SOUND_SPECIES = Set.of("pidgeot", "bisharp", "kingambit");
+    private static final net.minecraft.sounds.SoundEvent SPECIAL_SOUND = net.minecraft.sounds.SoundEvent.createVariableRangeEvent(
+            ResourceLocation.fromNamespaceAndPath("feurinfo", "wiki.roucarnage_scalpereur"));
+    @Nullable private static net.minecraft.client.resources.sounds.SoundInstance specialSoundPlaying;
+
+    private static void stopSpecialSound() {
+        if (specialSoundPlaying != null) {
+            net.minecraft.client.Minecraft.getInstance().getSoundManager().stop(specialSoundPlaying);
+            specialSoundPlaying = null;
+        }
+    }
+
+    private void playSpecialSoundFor(Species newSpecies, @Nullable Species previous) {
+        boolean special = SPECIAL_SOUND_SPECIES.contains(SpeciesLookup.normalize(newSpecies.getName()));
+        if (newSpecies == previous) {
+            return;
+        }
+        stopSpecialSound();
+        if (special) {
+            specialSoundPlaying = net.minecraft.client.resources.sounds.SimpleSoundInstance.forUI(SPECIAL_SOUND, 1.0F, 1.0F);
+            net.minecraft.client.Minecraft.getInstance().getSoundManager().play(specialSoundPlaying);
+        }
+    }
+
+    @Override
+    public void removed() {
+        super.removed();
+        // On quitte FeurWiki (pas pour l'écran Types / Réglages ouvert depuis la fiche) : on coupe le son
+        net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
+        if (!(mc.screen instanceof TypeBrowserScreen) && !(mc.screen instanceof com.goat.feurmod.ui.SettingsScreen)) {
+            stopSpecialSound();
+        }
+    }
+
     private void setSpecies(Species newSpecies) {
+        playSpecialSoundFor(newSpecies, species);
         species = newSpecies;
         forms.clear();
         FormData standard = newSpecies.getStandardForm();
