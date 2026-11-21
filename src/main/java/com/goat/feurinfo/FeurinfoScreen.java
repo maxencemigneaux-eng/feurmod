@@ -100,6 +100,8 @@ public final class FeurinfoScreen extends Screen {
     private final List<FormData> forms = new ArrayList<>();
     private int formIndex;
     private boolean shiny;
+    /** UltraShiny (variante du serveur, mod "ultrashiny-client") : par-dessus le shiny. */
+    private boolean ultraShiny;
     private Tab tab = Tab.MOVES;
     private final List<Row> allRows = new ArrayList<>();
     /** Filtres de la liste d'attaques (0 / vide = tout). */
@@ -183,6 +185,7 @@ public final class FeurinfoScreen extends Screen {
         }
         formIndex = 0;
         shiny = false;
+        ultraShiny = false;
         methodFilter = 0;
         categoryFilter = 0;
         typeFilter.clear();
@@ -435,12 +438,18 @@ public final class FeurinfoScreen extends Screen {
         Component shinyText = Component.literal("Shiny");
         int nw = font.width(normalLabel) + 10;
         int sw = font.width(shinyText) + 10;
-        FlatButton normalBtn = addRenderableWidget(new FlatButton(modelX + 4, modelY + 4, nw, 13, normalLabel, () -> setShiny(false)));
-        shinyButton = addRenderableWidget(new FlatButton(modelX + 4 + nw + 2, modelY + 4, sw, 13, shinyText, () -> setShiny(true))
+        FlatButton normalBtn = addRenderableWidget(new FlatButton(modelX + 4, modelY + 4, nw, 13, normalLabel, () -> setVariant(false, false)));
+        shinyButton = addRenderableWidget(new FlatButton(modelX + 4 + nw + 2, modelY + 4, sw, 13, shinyText, () -> setVariant(true, false))
                 .accent(0xFF8A6A1E));
-        normalBtn.selected = !shiny;
-        shinyButton.selected = shiny;
+        // UltraShiny : textures du serveur (aspect "ultrashiny", posé sur le shiny)
+        Component ultraText = Component.literal("UltraShiny");
+        int uw = font.width(ultraText) + 10;
+        ultraButton = addRenderableWidget(new FlatButton(modelX + 4 + nw + 2 + sw + 2, modelY + 4, uw, 13, ultraText,
+                () -> setVariant(true, true)).accent(0xFF7A2E8A));
+        ultraButton.setTooltip(Tooltip.create(Component.literal(
+                "UltraShiny (textures du serveur)\nSans variante UltraShiny pour ce Pokémon, c'est le shiny qui s'affiche.")));
         shinyNormalButton = normalBtn;
+        updateVariantButtons();
 
         java.util.Arrays.fill(categoryButtons, null);
         // Filtres par catégorie (physique / spéciale / statut), à droite de la barre d'onglets
@@ -518,6 +527,7 @@ public final class FeurinfoScreen extends Screen {
     }
 
     @Nullable private FlatButton shinyNormalButton;
+    @Nullable private FlatButton ultraButton;
 
     private void onFiltersChanged() {
         scroll = 0;
@@ -533,6 +543,9 @@ public final class FeurinfoScreen extends Screen {
         Set<String> aspects = new HashSet<>(form().getAspects());
         if (shiny) {
             aspects.add("shiny");
+        }
+        if (ultraShiny) {
+            aspects.add("ultrashiny");
         }
         RenderablePokemon renderable = new RenderablePokemon(species, aspects, ItemStack.EMPTY);
         // Cobblemon utilise une échelle de 2.7 et un décalage de -12 pour une zone de 118 x 100 px.
@@ -578,13 +591,17 @@ public final class FeurinfoScreen extends Screen {
         }
     }
 
-    private void setShiny(boolean value) {
-        shiny = value;
-        shinyButton.selected = shiny;
-        if (shinyNormalButton != null) {
-            shinyNormalButton.selected = !shiny;
-        }
+    private void setVariant(boolean shinyValue, boolean ultra) {
+        shiny = shinyValue;
+        ultraShiny = ultra;
+        updateVariantButtons();
         replaceModel();
+    }
+
+    private void updateVariantButtons() {
+        if (shinyNormalButton != null) shinyNormalButton.selected = !shiny;
+        if (shinyButton != null) shinyButton.selected = shiny && !ultraShiny;
+        if (ultraButton != null) ultraButton.selected = ultraShiny;
     }
 
     private void selectTab(Tab t) {
