@@ -20,7 +20,19 @@ import java.util.function.Supplier;
  */
 public final class SettingsScreen extends Screen {
 
-    private record Option(String label, Supplier<String> value, Runnable next, Runnable prev, String tip, Supplier<Boolean> on) {}
+    private record Option(String label, Supplier<String> value, Runnable next, Runnable prev, String tip, Supplier<Boolean> on,
+                          @Nullable Slider slider) {
+        Option(String label, Supplier<String> value, Runnable next, Runnable prev, String tip, Supplier<Boolean> on) {
+            this(label, value, next, prev, tip, on, null);
+        }
+    }
+
+    /** Barre réglable : valeur de min à max, par pas de step ; onRelease quand on lâche la souris. */
+    private record Slider(int min, int max, int step, java.util.function.IntSupplier get, java.util.function.IntConsumer set,
+                          Runnable onRelease) {}
+
+    @Nullable private Slider dragging;
+    private int dragX, dragW;
 
     private record Section(String title, List<Option> options) {}
 
@@ -85,9 +97,18 @@ public final class SettingsScreen extends Screen {
                 () -> { leg.warnSeconds = stepWarn(leg.warnSeconds, 1); FeurlegConfig.save(); },
                 () -> { leg.warnSeconds = stepWarn(leg.warnSeconds, -1); FeurlegConfig.save(); },
                 "Quand afficher l'alerte au milieu de l'écran", () -> leg.warnSeconds > 0),
-            new Option("Son d'alerte", () -> !leg.alertSound ? "Aucun" : "damn".equals(leg.alertSoundChoice) ? "Damn les gens" : "Cloche",
+            new Option("Son d'alerte", () -> SOUND_LABELS[soundIndex(leg)],
                 () -> { cycleSound(leg, 1); }, () -> { cycleSound(leg, -1); },
                 "Le son quand il reste peu de temps et à 0. Chaque clic te fait écouter le son choisi.", () -> leg.alertSound),
+            new Option("Volume de l'alerte", () -> leg.alertVolume + " %", () -> { }, () -> { },
+                "Glisse la barre (0 à 300 %). Au-dessus de 100 %, le son est joué plusieurs fois en même temps pour être plus fort. "
+                    + "Le son se joue quand tu lâches la barre.", () -> true,
+                new Slider(0, 300, 10, () -> leg.alertVolume, v -> leg.alertVolume = v, () -> {
+                    FeurlegConfig.save();
+                    if (leg.alertSound) {
+                        com.goat.feurleg.FeurlegClient.playAlertSound(net.minecraft.client.Minecraft.getInstance(), 1.2f);
+                    }
+                })),
             toggle("Message au milieu de l'écran", () -> leg.alertMessage, v -> leg.alertMessage = v,
                 "Grand titre avec le nom de la zone", FeurlegConfig::save))));
     }
@@ -100,12 +121,22 @@ public final class SettingsScreen extends Screen {
         return new Option(label, () -> get.get() ? "Oui" : "Non", flip, flip, tip, get);
     }
 
-    /** Aucun → Cloche → Damn les gens, et on fait écouter le son choisi. */
+    private static final String[] SOUND_LABELS = {"Aucun", "Cloche", "Damn les gens", "Damn N"};
+    private static final String[] SOUND_IDS = {"", "cloche", "damn", "damn_n"};
+
+    private static int soundIndex(FeurlegConfig leg) {
+        if (!leg.alertSound) return 0;
+        for (int i = 1; i < SOUND_IDS.length; i++) {
+            if (SOUND_IDS[i].equals(leg.alertSoundChoice)) return i;
+        }
+        return 1;
+    }
+
+    /** Aucun → Cloche → Damn les gens → Damn N, et on fait écouter le son choisi. */
     private static void cycleSound(FeurlegConfig leg, int dir) {
-        int cur = !leg.alertSound ? 0 : "damn".equals(leg.alertSoundChoice) ? 2 : 1;
-        int next = Math.floorMod(cur + dir, 3);
+        int next = Math.floorMod(soundIndex(leg) + dir, SOUND_IDS.length);
         leg.alertSound = next != 0;
-        leg.alertSoundChoice = next == 2 ? "damn" : "cloche";
+        leg.alertSoundChoice = next == 0 ? leg.alertSoundChoice : SOUND_IDS[next];
         FeurlegConfig.save();
         if (next != 0) {
             com.goat.feurleg.FeurlegClient.playAlertSound(net.minecraft.client.Minecraft.getInstance(), 1.2f);
@@ -176,11 +207,29 @@ public final class SettingsScreen extends Screen {
                 Theme.rect(g, x + 6, y, w - 12, ROW - 2, 3, hover ? Theme.CARD_HOVER : Theme.CARD);
                 g.drawString(font, o.label(), x + 12, y + 5, Theme.TEXT, false);
                 String v = o.value().get();
+                if (o.slider() != null) {
+                    // Barre : piste, partie remplie, poignée, et la valeur à droite
+                    Slider sl = o.slider();
+                    int valW = font.width("300 %") + 6;
+                    int tw = Math.min(150, w / 2 - 20);
+                    int tx = x + w - 12 - valW - tw;
+                    float frac = (sl.get().getAsInt() - sl.min()) / (float) (sl.max() - sl.min());
+                    Theme.rect(g, tx, y + 7, tw, 4, 2, Theme.TRACK);
+                    Theme.rect(g, tx, y + 7, Math.max(2, (int) (tw * frac)), 4, 2, Theme.ACCENT);
+                    // repère des 100 %
+                    int mark = tx + (int) (tw * (100f - sl.min()) / (sl.max() - sl.min()));
+                    g.fill(mark, y + 5, mark + 1, y + 13, Theme.MUTED);
+                    int hx = tx + (int) (tw * frac) - 3;
+                    Theme.rect(g, hx, y + 3, 6, 12, 2, sl == dragging ? Theme.lighten(Theme.ACCENT, 0.3F) : Theme.TEXT);
+                    g.drawString(font, v, x + w - 12 - font.width(v), y + 5, sl.get().getAsInt() > 100 ? Theme.GOLD : Theme.TEXT, false);
+                    sliderTrack.put(sl, new int[]{tx, tw});
+                } else {
                 int vw = Math.max(54, font.width(v) + 12);
                 int vx = x + w - 12 - vw;
                 boolean on = o.on().get();
                 Theme.rect(g, vx, y + 2, vw, ROW - 6, 3, on ? Theme.withAlpha(Theme.ACCENT, 0xB0) : Theme.FIELD);
                 g.drawCenteredString(font, v, vx + vw / 2, y + 5, on ? Theme.TEXT : Theme.TEXT_2);
+                }
                 if (hover) {
                     tip = font.split(Component.literal(o.tip()), 220);
                 }
@@ -204,6 +253,16 @@ public final class SettingsScreen extends Screen {
                 y += HEAD;
                 for (Option o : s.options()) {
                     if (my >= y && my < y + ROW - 2) {
+                        if (o.slider() != null) {
+                            int[] t = sliderTrack.get(o.slider());
+                            if (t != null && mx >= t[0] - 4 && mx <= t[0] + t[1] + 4) {
+                                dragging = o.slider();
+                                dragX = t[0];
+                                dragW = t[1];
+                                setSlider(mx);
+                            }
+                            return true;
+                        }
                         if (button == 1) o.prev().run();
                         else o.next().run();
                         return true;
@@ -214,6 +273,36 @@ public final class SettingsScreen extends Screen {
             }
         }
         return super.mouseClicked(mx, my, button);
+    }
+
+    private final java.util.Map<Slider, int[]> sliderTrack = new java.util.HashMap<>();
+
+    private void setSlider(double mx) {
+        Slider sl = dragging;
+        if (sl == null) return;
+        float frac = Mth.clamp((float) (mx - dragX) / Math.max(1, dragW), 0F, 1F);
+        int v = sl.min() + Math.round(frac * (sl.max() - sl.min()) / sl.step()) * sl.step();
+        sl.set().accept(Mth.clamp(v, sl.min(), sl.max()));
+    }
+
+    @Override
+    public boolean mouseDragged(double mx, double my, int button, double dx, double dy) {
+        if (dragging != null) {
+            setSlider(mx);
+            return true;
+        }
+        return super.mouseDragged(mx, my, button, dx, dy);
+    }
+
+    @Override
+    public boolean mouseReleased(double mx, double my, int button) {
+        if (dragging != null) {
+            Slider sl = dragging;
+            dragging = null;
+            sl.onRelease().run();
+            return true;
+        }
+        return super.mouseReleased(mx, my, button);
     }
 
     @Override

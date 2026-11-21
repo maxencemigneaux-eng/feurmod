@@ -50,8 +50,10 @@ public final class FeurlegConfig {
     /** Prévenir quand il reste moins de X secondes (0 = jamais). */
     public int warnSeconds = 60;
     public boolean alertSound = true;
-    /** Son de l'alerte : "cloche" ou "damn" (Damn les gens). */
+    /** Son de l'alerte : "cloche", "damn" (Damn les gens) ou "damn_n" (Damn N). */
     public String alertSoundChoice = "cloche";
+    /** Volume de l'alerte en % (0 à 300). Au-dessus de 100 %, le son est joué plusieurs fois en même temps. */
+    public int alertVolume = 100;
     public boolean alertMessage = true;
 
     /** Après combien de secondes passées à 0 le timer est considéré comme périmé (rouvre /leg). */

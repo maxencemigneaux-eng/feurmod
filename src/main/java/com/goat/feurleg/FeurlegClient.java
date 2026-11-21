@@ -103,13 +103,33 @@ public final class FeurlegClient implements ClientModInitializer {
 
     private static final net.minecraft.sounds.SoundEvent DAMN_LES_GENS = net.minecraft.sounds.SoundEvent.createVariableRangeEvent(
             net.minecraft.resources.ResourceLocation.fromNamespaceAndPath("feurleg", "alert.damn_les_gens"));
+    private static final net.minecraft.sounds.SoundEvent DAMN_N = net.minecraft.sounds.SoundEvent.createVariableRangeEvent(
+            net.minecraft.resources.ResourceLocation.fromNamespaceAndPath("feurleg", "alert.damn_n"));
 
-    /** Le son choisi dans les réglages (cloche, ou "Damn les gens"). Aussi utilisé pour l'essai dans /feurmod. */
+    /**
+     * Le son choisi dans les réglages, au volume réglé (0 à 300 %). Minecraft bloque chaque son à 100 % :
+     * au-dessus, on joue le même son 2 ou 3 fois en même temps pour qu'il soit plus fort.
+     */
     public static void playAlertSound(Minecraft client, float pitch) {
-        if ("damn".equals(FeurlegConfig.get().alertSoundChoice)) {
-            client.getSoundManager().play(SimpleSoundInstance.forUI(DAMN_LES_GENS, 1.0f, 1.0f));
+        FeurlegConfig cfg = FeurlegConfig.get();
+        net.minecraft.sounds.SoundEvent sound;
+        float p = 1.0f;
+        if ("damn".equals(cfg.alertSoundChoice)) {
+            sound = DAMN_LES_GENS;
+        } else if ("damn_n".equals(cfg.alertSoundChoice)) {
+            sound = DAMN_N;
         } else {
-            client.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.NOTE_BLOCK_BELL.value(), pitch, 1.0f));
+            sound = SoundEvents.NOTE_BLOCK_BELL.value();
+            p = pitch;
+        }
+        float volume = Math.max(0, Math.min(300, cfg.alertVolume)) / 100f;
+        if (volume <= 0) {
+            return;
+        }
+        int copies = (int) Math.ceil(volume);
+        float each = volume / copies;
+        for (int i = 0; i < copies; i++) {
+            client.getSoundManager().play(SimpleSoundInstance.forUI(sound, p, each));
         }
     }
 }

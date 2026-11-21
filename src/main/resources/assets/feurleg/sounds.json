@@ -2,7 +2,19 @@
   "alert.damn_les_gens": {
     "category": "master",
     "sounds": [
-      { "name": "feurleg:damn_les_gens", "stream": false }
+      {
+        "name": "feurleg:damn_les_gens",
+        "stream": false
+      }
+    ]
+  },
+  "alert.damn_n": {
+    "category": "master",
+    "sounds": [
+      {
+        "name": "feurleg:damn_n",
+        "stream": false
+      }
     ]
   }
 }
