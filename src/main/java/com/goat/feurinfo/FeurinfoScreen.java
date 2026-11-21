@@ -453,12 +453,10 @@ public final class FeurinfoScreen extends Screen {
 
         java.util.Arrays.fill(categoryButtons, null);
         // Filtres par catégorie (physique / spéciale / statut), à droite de la barre d'onglets
-        String[] catLabels = {"Phys.", "Spé.", "Stat."};
+        String[] catLabels = {"", "", ""}; // icônes de catégorie de Cobblemon, dessinées par-dessus
+        String[] catTips = {"Physique", "Spéciale", "Statut"};
         int[] catColors = {0xFF8A4A2A, 0xFF34508A, 0xFF5A5A5A};
-        int catW = 0;
-        for (String l : catLabels) {
-            catW = Math.max(catW, font.width(l) + 10);
-        }
+        int catW = 30;
         int catTotal = rightW >= 360 ? catW * 3 + 4 + 8 : 0;
         if (catTotal > 0) {
             int cx = rightX + rightW - 5 - catW * 3 - 4;
@@ -468,7 +466,7 @@ public final class FeurinfoScreen extends Screen {
                     categoryFilter ^= bit;
                     onFiltersChanged();
                 }).accent(catColors[i]);
-                b.setTooltip(Tooltip.create(Component.literal("Ne garder que les attaques de cette catégorie (re-clic : enlever)")));
+                b.setTooltip(Tooltip.create(Component.literal(catTips[i] + " : ne garder que ces attaques (re-clic : enlever)")));
                 categoryButtons[i] = addRenderableWidget(b);
             }
         }
@@ -634,21 +632,79 @@ public final class FeurinfoScreen extends Screen {
         }
     }
 
+    // Liste déroulante sous la recherche : "#0025  Pikachu" (clic, ↑ ↓ + Entrée)
+    private static final int DROP_MAX = 8;
+    private static final int DROP_ROW = 12;
+    private final List<Species> searchResults = new ArrayList<>();
+    private int searchSel;
+
     private void onSearchChanged(String text) {
         searchText = text;
         searchError = null;
         search.setSuggestion(null);
+        searchResults.clear();
+        searchSel = 0;
         String typed = SpeciesLookup.normalize(text);
         if (typed.isEmpty()) {
             return;
         }
-        for (Species s : SpeciesLookup.all()) {
-            String name = SpeciesLookup.displayName(s);
-            if (name.toLowerCase().startsWith(text.toLowerCase()) && name.length() > text.length()) {
-                search.setSuggestion(name.substring(text.length()));
-                return;
+        List<Species> contains = new ArrayList<>();
+        boolean number = typed.chars().allMatch(Character::isDigit);
+        for (Species sp : SpeciesLookup.all()) {
+            String local = SpeciesLookup.normalize(SpeciesLookup.displayName(sp));
+            String english = SpeciesLookup.normalize(sp.getName());
+            if (number ? String.valueOf(sp.getNationalPokedexNumber()).startsWith(typed.replaceFirst("^0+(?=.)", ""))
+                    : local.startsWith(typed) || english.startsWith(typed)) {
+                searchResults.add(sp);
+            } else if (!number && (local.contains(typed) || english.contains(typed))) {
+                contains.add(sp);
             }
+            if (searchResults.size() >= DROP_MAX) break;
         }
+        for (Species sp : contains) {
+            if (searchResults.size() >= DROP_MAX) break;
+            searchResults.add(sp);
+        }
+    }
+
+    private boolean dropdownOpen() {
+        return search != null && search.isFocused() && !searchResults.isEmpty();
+    }
+
+    private int dropY() {
+        return SEARCH_Y + 18;
+    }
+
+    private void openSpecies(Species sp) {
+        searchText = "";
+        searchError = null;
+        searchResults.clear();
+        setSpecies(sp);
+        rebuildWidgets();
+    }
+
+    private void drawDropdown(GuiGraphics g, int mouseX, int mouseY) {
+        if (!dropdownOpen()) return;
+        g.pose().pushPose();
+        g.pose().translate(0, 0, 400);
+        int h = searchResults.size() * DROP_ROW + 4;
+        Theme.panel(g, searchX, dropY(), searchW, h, 3, Theme.POPUP, Theme.lighten(Theme.PANEL_BORDER, 0.3F));
+        g.flush();
+        int numW = font.width("#00000") + 6;
+        for (int i = 0; i < searchResults.size(); i++) {
+            Species sp = searchResults.get(i);
+            int ry = dropY() + 2 + i * DROP_ROW;
+            boolean hover = inRect(mouseX, mouseY, searchX, ry, searchW, DROP_ROW);
+            if (hover) searchSel = i;
+            if (i == searchSel) {
+                Theme.rect(g, searchX + 2, ry, searchW - 4, DROP_ROW, 2, Theme.withAlpha(Theme.ACCENT, 0x70));
+                g.flush();
+            }
+            g.drawString(font, String.format("#%04d", sp.getNationalPokedexNumber()), searchX + 6, ry + 2, Theme.MUTED, false);
+            g.drawString(font, Theme.ellipsize(font, SpeciesLookup.displayName(sp), searchW - numW - 10), searchX + 6 + numW, ry + 2,
+                    Theme.TEXT, false);
+        }
+        g.pose().popPose();
     }
 
     private void runSearch() {
@@ -666,8 +722,16 @@ public final class FeurinfoScreen extends Screen {
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
         if (search != null && search.isFocused()) {
+            if (!searchResults.isEmpty() && (keyCode == GLFW.GLFW_KEY_DOWN || keyCode == GLFW.GLFW_KEY_UP)) {
+                searchSel = Math.floorMod(searchSel + (keyCode == GLFW.GLFW_KEY_DOWN ? 1 : -1), searchResults.size());
+                return true;
+            }
             if (keyCode == GLFW.GLFW_KEY_ENTER || keyCode == GLFW.GLFW_KEY_KP_ENTER) {
-                runSearch();
+                if (!searchResults.isEmpty()) {
+                    openSpecies(searchResults.get(Mth.clamp(searchSel, 0, searchResults.size() - 1)));
+                } else {
+                    runSearch();
+                }
                 return true;
             }
             if (keyCode == GLFW.GLFW_KEY_TAB) {
@@ -683,6 +747,16 @@ public final class FeurinfoScreen extends Screen {
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        if (dropdownOpen()) {
+            int h = searchResults.size() * DROP_ROW + 4;
+            if (inRect(mouseX, mouseY, searchX, dropY(), searchW, h)) {
+                int i = (int) ((mouseY - dropY() - 2) / DROP_ROW);
+                if (i >= 0 && i < searchResults.size()) {
+                    openSpecies(searchResults.get(i));
+                }
+                return true;
+            }
+        }
         if (button == 0 && model != null && isInModel(mouseX, mouseY)) {
             draggingModel = true;
         }
@@ -824,6 +898,7 @@ public final class FeurinfoScreen extends Screen {
             for (int i = 0; i < lines.size(); i++) {
                 graphics.drawCenteredString(font, lines.get(i), cx, cy - boxH / 2 + 8 + i * 10, Theme.TEXT_2);
             }
+            drawDropdown(graphics, mouseX, mouseY);
             return;
         }
 
@@ -854,6 +929,8 @@ public final class FeurinfoScreen extends Screen {
         } else {
             drawMoves(graphics, mouseX, mouseY);
         }
+        drawCategoryIcons(graphics);
+        drawDropdown(graphics, mouseX, mouseY);
     }
 
     /** "#0006  Dracaufeu" + les types en pastilles colorées. */
@@ -1774,6 +1851,29 @@ public final class FeurinfoScreen extends Screen {
     }
 
     /** Icône ronde du type, découpée dans la planche de Cobblemon (index = textureXMultiplier). */
+    /** Icônes de catégorie de Cobblemon : 3 icônes de 24 x 16 l'une sous l'autre (physique, spéciale, statut). */
+    private static final ResourceLocation CATEGORY_ICONS = ResourceLocation.fromNamespaceAndPath("cobblemon", "textures/gui/categories.png");
+
+    private static void drawCategoryIcon(GuiGraphics graphics, int index, int x, int y, int w, int h) {
+        RenderSystem.enableBlend();
+        graphics.blit(CATEGORY_ICONS, x, y, w, h, 0, index * 16, 24, 16, 24, 48);
+        RenderSystem.disableBlend();
+    }
+
+    /** Les icônes sur les filtres Physique / Spéciale / Statut. */
+    private void drawCategoryIcons(GuiGraphics g) {
+        for (int i = 0; i < 3; i++) {
+            FlatButton b = categoryButtons[i];
+            if (b == null || !b.visible) continue;
+            int w = 18, h = 12;
+            if (categoryFilter != 0 && (categoryFilter & (1 << i)) == 0) {
+                RenderSystem.setShaderColor(1F, 1F, 1F, 0.35F);
+            }
+            drawCategoryIcon(g, i, b.getX() + (b.getWidth() - w) / 2, b.getY() + (b.getHeight() - h) / 2, w, h);
+            RenderSystem.setShaderColor(1F, 1F, 1F, 1F);
+        }
+    }
+
     private static void drawTypeIcon(GuiGraphics graphics, ElementalType type, int x, int y, int size) {
         int u = type.getTextureXMultiplier() * TYPE_ICON_SRC;
         RenderSystem.enableBlend();
