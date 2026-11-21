@@ -1,17 +1,20 @@
 # Feurmod — les mods Cobblemon de Goat, en un seul
 
-Pour **Cobblemon 1.8.x** (Fabric, Minecraft 1.21.1). Regroupe trois mods :
+Pour **Cobblemon 1.8.x** (Fabric, Minecraft 1.21.1). Regroupe quatre mods, plus quelques bonus :
 
 | Fonction | Comment l'utiliser |
 |---|---|
 | **Annuler** en combat (ex-Cobblemon Undo) | Boutons **Annuler** / **Envoyer** en bas à gauche de l'écran de combat |
 | **Fiche Pokémon** (ex-Feurinfo) | `/feurinfo dracaufeu` |
 | **Calculateur de dégâts** façon Showdex (ex-Feurcalc) | Touche **J**, bouton **Feurcalc** en combat, ou `/feurcalc [pokémon]` |
+| **Timers des légendaires** toujours affichés (ex-Feurleg) | Ouvre `/leg` une fois ; touche **K** pour afficher / cacher |
+| **Recherche dans le PC** | Barre au-dessus du PC, ou `/feursearch <texte>` |
+| **Réglages** (thème, Annuler/Envoyer, timers) | `/feurmod` (ou une touche à choisir dans Options › Commandes) |
 
 Tout marche **même si tu es le seul à avoir le mod** sur le serveur. Les touches sont réglables dans
 Options › Commandes › **Feurmod**.
 
-> Si tu avais les anciens mods (cobblemon-undo, cobblemon-feurinfo, cobblemon-feurcalc),
+> Si tu avais les anciens mods (cobblemon-undo, cobblemon-feurinfo, cobblemon-feurcalc, feurleg),
 > **supprime-les** du dossier `mods` : Feurmod les remplace.
 
 ## Annuler en combat
@@ -43,6 +46,11 @@ Par défaut, seulement **contre un joueur**. Réglages dans `config/cobblemon_un
   Survol d'une carte = la liste des biomes concernés. En solo, les données viennent de ton monde
   (datapacks compris) ; sur un serveur, de tes mods.
 
+- Onglet **Évos** : la chaîne d'évolution complète (méthode : niveau, objet, échange, bonheur, la nuit...).
+  Clic sur un Pokémon = ouvrir sa fiche. Les Fakemon / Pokémon de datapacks sont lus directement dans Cobblemon.
+- **Tableau d'attaques** : clic sur un en-tête de colonne = trier (croissant ▲ / décroissant ▼ / par défaut) ;
+  clic sur l'icône de type ou la catégorie d'une attaque = ne garder que ce type / cette catégorie.
+
 ## Calculateur de dégâts — touche J / `/feurcalc`
 
 Le vrai calculateur de Pokémon Showdown (`@smogon/calc`, le même que Showdex), qui tourne dans le moteur
@@ -67,6 +75,29 @@ JavaScript déjà présent dans Cobblemon.
 - **Mode Double (VGC)** : bouton **Double** (activé tout seul en combat double). Les attaques qui touchent plusieurs
   cibles font 25 % de moins, Coup d'Main et Garde-Ami de chaque côté, et un bouton **1/2** pour choisir quel
   Pokémon en jeu est calculé.
+
+- **Méga-évolution** : bouton **Méga** à côté du Téra (Méga X / Méga Y quand il y en a deux) : stats, types et
+  talent de la forme Méga.
+- **Fin de tour dans les KO** : Restes, poison, brûlure, météo, Piège de Roc, Picots, et les nouveaux boutons
+  **Vampigraine** / **Salaison** de chaque côté. Le survol d'une attaque dit ce qui est compté.
+- **Adversaires déjà vus** : en haut de la liste quand tu choisis un Pokémon, avec ce qu'ils ont révélé en combat.
+
+## Timers des légendaires (ex-Feurleg)
+
+Ouvre `/leg` une fois : le panneau garde tous les timers en coin d'écran et les décompte tout seul (couleurs :
+bleu ≥ 10 min, jaune, violet < 5 min, rouge < 2 min). Survole chaque zone dans `/leg` pour apprendre son moment
+de la journée : le panneau affiche alors l'heure Minecraft du spawn (`~21:30 nuit`). Alerte au milieu de l'écran +
+son à 1 minute. Réglages dans `/feurmod`.
+
+## Recherche dans le PC
+
+Barre de recherche au-dessus du PC de Cobblemon : un nom (français, anglais ou surnom), `shiny`, `6iv`, une nature,
+un talent, `niv50`, `niv>50`... (combinables). ◀ ▶ ou **Entrée** pour passer d'un résultat à l'autre : le PC saute
+à la bonne boîte et sélectionne le Pokémon. `/feursearch <texte>` liste les résultats dans le chat (équipe + PC déjà ouverts).
+
+## Réglages — `/feurmod`
+
+Couleur d'accent et opacité des menus, options Annuler / Envoyer, et tout l'affichage des timers des légendaires.
 
 ## Télécharger le .jar
 
