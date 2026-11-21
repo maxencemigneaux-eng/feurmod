@@ -5,7 +5,7 @@ Pour **Cobblemon 1.8.x** (Fabric, Minecraft 1.21.1). Regroupe quatre mods, plus 
 | Fonction | Comment l'utiliser |
 |---|---|
 | **Annuler** en combat (ex-Cobblemon Undo) | Boutons **Annuler** / **Envoyer** en bas à gauche de l'écran de combat |
-| **Fiche Pokémon** (ex-Feurinfo) | `/feurinfo dracaufeu` |
+| **FeurWiki** : fiche Pokémon (ex-Feurinfo) | `/feurwiki dracaufeu` (ou `/feurinfo`) |
 | **Calculateur de dégâts** façon Showdex (ex-Feurcalc) | Touche **J**, bouton **Feurcalc** en combat, ou `/feurcalc [pokémon]` |
 | **Timers des légendaires** toujours affichés (ex-Feurleg) | Ouvre `/leg` une fois ; touche **K** pour afficher / cacher |
 | **Recherche dans le PC** | Barre au-dessus du PC, ou `/feursearch <texte>` |
@@ -31,9 +31,9 @@ l'adversaire n'a pas joué.
 Par défaut, seulement **contre un joueur**. Réglages dans `config/cobblemon_undo.json` :
 `"confirmerAvantEnvoi"` (mettre `false` pour l'envoi immédiat) et `"aussiContrePnjEtSauvages"`.
 
-## Fiche Pokémon — `/feurinfo`
+## FeurWiki — `/feurwiki` (ou `/feurinfo`)
 
-- `/feurinfo dracaufeu` (nom français, anglais ou numéro ; **Tab** pour l'autocomplétion).
+- `/feurwiki dracaufeu` (nom français, anglais ou numéro ; **Tab** pour l'autocomplétion).
 - **Modèle 3D** (glisser pour tourner), formes **< >**, version shiny **☆ / ★**.
 - **Types**, **talents** (le caché est marqué, survol = description) et **stats de base** avec le total.
 - **Attaques** par onglet (Niveau, CT, Œufs, Tuteur, Évolution, Autres), barre de recherche dans toutes
@@ -46,7 +46,10 @@ Par défaut, seulement **contre un joueur**. Réglages dans `config/cobblemon_un
   Survol d'une carte = la liste des biomes concernés. En solo, les données viennent de ton monde
   (datapacks compris) ; sur un serveur, de tes mods.
 
-- Onglet **Évos** : la chaîne d'évolution complète (méthode : niveau, objet, échange, bonheur, la nuit...).
+- Onglets **Attaques** (une seule liste : méthode « Niv. 1, CT, Tuteur », filtres Niveau / CT / Tuteur…, Phys. / Spé. / Stat.,
+  rangée d'icônes de type, colonne Prio), **Faiblesses**, **Évolutions**, **Set courant** (sets Smogon et les plus joués sur
+  Showdown, bouton « Ouvrir dans Feurcalc ») et **Spawn**. Onglets Normal / Shiny sur le modèle, faiblesses en bref sous les stats.
+- Onglet **Évolutions** : la chaîne d'évolution complète (méthode : niveau, objet, échange, bonheur, la nuit...).
   Clic sur un Pokémon = ouvrir sa fiche. Les Fakemon / Pokémon de datapacks sont lus directement dans Cobblemon.
 - **Tableau d'attaques** : clic sur un en-tête de colonne = trier (croissant ▲ / décroissant ▼ / par défaut) ;
   clic sur l'icône de type ou la catégorie d'une attaque = ne garder que ce type / cette catégorie.
