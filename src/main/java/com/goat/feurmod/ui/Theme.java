@@ -11,7 +11,7 @@ import net.minecraft.network.chat.Component;
  */
 public final class Theme {
     // Fonds
-    public static final int PANEL = 0xFF141920;
+    public static int PANEL = 0xFF141920; // opacité réglable (menu Réglages)
     public static final int PANEL_BORDER = 0xFF29323E;
     public static final int HEADER = 0xFF1A212A;
     public static final int CARD = 0xFF1D242E;
@@ -31,7 +31,7 @@ public final class Theme {
     public static final int LABEL = 0xFF8796A5;
 
     // Accents
-    public static final int ACCENT = 0xFF3D8BFF;
+    public static int ACCENT = 0xFF3D8BFF; // couleur réglable (menu Réglages)
     public static final int ACCENT_RED = 0xFFFF5470;
     public static final int GOLD = 0xFFFFCF5C;
     public static final int GOOD = 0xFF45D483;

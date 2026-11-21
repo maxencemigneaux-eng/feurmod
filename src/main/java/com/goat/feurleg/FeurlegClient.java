@@ -30,9 +30,9 @@ public final class FeurlegClient implements ClientModInitializer {
         FeurlegConfig.load();
 
         toggleKey = KeyBindingHelper.registerKeyBinding(new KeyMapping(
-            "key.feurleg.toggle", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_K, "category.feurleg"));
+            "key.feurleg.toggle", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_K, "key.categories.feurmod"));
         dumpKey = KeyBindingHelper.registerKeyBinding(new KeyMapping(
-            "key.feurleg.dump", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_F8, "category.feurleg"));
+            "key.feurleg.dump", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_F8, "key.categories.feurmod"));
 
         // Touche de debug utilisable pendant qu'un menu est ouvert.
         ScreenEvents.AFTER_INIT.register((client, screen, w, h) ->

@@ -33,6 +33,19 @@ public final class UndoConfig {
         return instance;
     }
 
+    /** Enregistre les réglages (appelé par le menu Réglages de Feurmod). */
+    public static void save() {
+        Path file = FabricLoader.getInstance().getConfigDir().resolve(CobblemonUndo.MOD_ID + ".json");
+        try {
+            Files.createDirectories(file.getParent());
+            try (Writer writer = Files.newBufferedWriter(file, StandardCharsets.UTF_8)) {
+                GSON.toJson(instance, writer);
+            }
+        } catch (Exception e) {
+            CobblemonUndo.LOGGER.warn("Impossible d'écrire la config {} : {}", file, e.toString());
+        }
+    }
+
     static void load() {
         Path file = FabricLoader.getInstance().getConfigDir().resolve(CobblemonUndo.MOD_ID + ".json");
         try {
