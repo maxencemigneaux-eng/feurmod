@@ -188,5 +188,8 @@
   "feurcalc.picker.seen": "Adversaires déjà vus",
   "feurcalc.moves.pool": "Set actuel",
   "feurcalc.moves.usage": "Les plus jouées (Showdown)",
-  "feurcalc.moves.all": "Toutes les attaques"
+  "feurcalc.moves.all": "Toutes les attaques",
+  "feurcalc.weather.harsh_sunshine": "Terre Finale",
+  "feurcalc.weather.heavy_rain": "Mer Primaire",
+  "feurcalc.weather.strong_winds": "Souffle Delta"
 }

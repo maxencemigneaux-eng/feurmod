@@ -188,5 +188,8 @@
   "feurcalc.picker.seen": "Opponents already seen",
   "feurcalc.moves.pool": "Current set",
   "feurcalc.moves.usage": "Most used (Showdown)",
-  "feurcalc.moves.all": "All moves"
+  "feurcalc.moves.all": "All moves",
+  "feurcalc.weather.harsh_sunshine": "Harsh Sunshine",
+  "feurcalc.weather.heavy_rain": "Heavy Rain",
+  "feurcalc.weather.strong_winds": "Strong Winds"
 }

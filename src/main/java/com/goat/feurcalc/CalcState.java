@@ -81,8 +81,8 @@ public final class CalcState {
     // Talents qui posent une météo / un champ en entrant (Sécheresse → Soleil, Créa-Élec → Champ Électrifié...)
 
     private static final java.util.Map<String, String> WEATHER_ABILITIES = java.util.Map.of(
-            "drought", "Sun", "orichalcumpulse", "Sun", "desolateland", "Sun",
-            "drizzle", "Rain", "primordialsea", "Rain",
+            "drought", "Sun", "orichalcumpulse", "Sun", "desolateland", "Harsh Sunshine",
+            "drizzle", "Rain", "primordialsea", "Heavy Rain", "deltastream", "Strong Winds",
             "sandstream", "Sand", "snowwarning", "Snow");
     private static final java.util.Map<String, String> TERRAIN_ABILITIES = java.util.Map.of(
             "electricsurge", "Electric", "hadronengine", "Electric", "grassysurge", "Grassy",

@@ -37,7 +37,7 @@ public final class Names {
     public static final String[] STAT_IDS = {"hp", "atk", "def", "spa", "spd", "spe"};
 
     public static final String[] STATUSES = {"", "brn", "par", "psn", "tox", "slp", "frz"};
-    public static final String[] WEATHERS = {"", "Sun", "Rain", "Sand", "Snow"};
+    public static final String[] WEATHERS = {"", "Sun", "Rain", "Sand", "Snow", "Harsh Sunshine", "Heavy Rain", "Strong Winds"};
     public static final String[] TERRAINS = {"", "Electric", "Grassy", "Psychic", "Misty"};
 
     private Names() {
@@ -317,7 +317,7 @@ public final class Names {
     }
 
     public static String weatherName(String weather) {
-        return tr("feurcalc.weather." + (weather.isEmpty() ? "none" : weather.toLowerCase(Locale.ROOT)));
+        return tr("feurcalc.weather." + (weather.isEmpty() ? "none" : weather.toLowerCase(Locale.ROOT).replace(' ', '_')));
     }
 
     public static String terrainName(String terrain) {
