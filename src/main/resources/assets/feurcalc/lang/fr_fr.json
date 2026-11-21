@@ -177,5 +177,13 @@
   "feurcalc.team.tip.click": "Clic : le mettre dans le calculateur (à gauche)",
   "feurcalc.team.hint": "Clic sur un Pokémon pour le mettre à gauche · Échap pour fermer",
   "feurcalc.help.7": "Équipe : qui envoyer contre l'adversaire (★ = le meilleur échange). En combat, il s'affiche quand tu changes de Pokémon.",
-  "feurcalc.help.8": "En vert : ce que l'adversaire a montré pendant le combat (objet, talent, attaques). Son set se corrige tout seul."
+  "feurcalc.help.8": "En vert : ce que l'adversaire a montré pendant le combat (objet, talent, attaques). Son set se corrige tout seul.",
+  "feurcalc.level_short": "Niv. %s",
+  "feurcalc.side.leech_seed": "Vampigraine",
+  "feurcalc.side.salt_cure": "Salaison",
+  "feurcalc.tip.leech_seed": "%s est sous Vampigraine : perd 1/8 de ses PV à chaque fin de tour (compté dans les chances de KO)",
+  "feurcalc.tip.salt_cure": "%s est sous Salaison : perd 1/8 de ses PV par tour (1/4 s'il est Eau ou Acier), compté dans les chances de KO",
+  "feurcalc.tip.mega": "Méga-évolution : stats, types et talent de la forme Méga (avec sa méga-gemme)",
+  "feurcalc.tip.ko_after": "Compté en fin de tour : %s",
+  "feurcalc.picker.seen": "Adversaires déjà vus"
 }

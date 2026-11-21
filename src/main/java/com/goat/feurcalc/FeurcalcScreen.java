@@ -38,6 +38,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.function.Consumer;
 import java.util.function.IntConsumer;
 import java.util.function.IntSupplier;
@@ -176,7 +177,7 @@ public final class FeurcalcScreen extends Screen {
 
         // Hauteur : version aérée si l'écran est assez grand, sinon version compacte
         layoutDoubles = state.field.doubles;
-        int rows = layoutDoubles ? 18 : 17; // en double : une ligne de plus pour Coup d'Main / Garde-Ami
+        int rows = layoutDoubles ? 19 : 18; // Vampigraine / Salaison ; en double : une ligne de plus pour Coup d'Main / Garde-Ami
         boolean roomy = true;
         int fixed = 91; // tout ce qui n'est pas une ligne de rowH (marges, en-tête, Set, PV, séparateurs)
         topGap = 7;
@@ -1122,7 +1123,16 @@ public final class FeurcalcScreen extends Screen {
 
         text(Names.tr("feurcalc.tera"), rightCol, textY(y2, h), C_LABEL);
         int toggleW = 24;
-        int teraW = colW - labelW - toggleW - 4;
+        JsonObject megaSummary = state.side(s == 0);
+        List<String> megaNames = new ArrayList<>();
+        if (megaSummary != null && megaSummary.has("megas")) {
+            megaSummary.getAsJsonArray("megas").forEach(e -> megaNames.add(e.getAsString()));
+        }
+        if (m.mega > megaNames.size()) {
+            m.mega = 0;
+        }
+        int megaW = megaNames.isEmpty() ? 0 : font.width("Méga X") + 8;
+        int teraW = colW - labelW - toggleW - 4 - (megaW > 0 ? megaW + 4 : 0);
         int teraX = rightCol + labelW;
         ElementalType teraIcon = Names.type(m.teraType);
         if (teraIcon != null) {
@@ -1134,6 +1144,21 @@ public final class FeurcalcScreen extends Screen {
         final int ty = y2;
         chip(g, teraX + teraW + 4, ty, toggleW, h, m.tera ? "ON" : "off", m.tera ? C_TEXT : C_DIM, m.tera, true, mx, my,
                 () -> m.tera = !m.tera, null, List.of(tr("feurcalc.tip.tera")));
+        if (megaW > 0) {
+            int count = megaNames.size();
+            String megaLabel = m.mega == 0 ? "Méga" : "Méga" + megaSuffix(megaNames.get(m.mega - 1));
+            List<Component> megaTip = new ArrayList<>();
+            megaTip.add(tr("feurcalc.tip.mega"));
+            if (m.mega > 0) {
+                megaTip.add(Component.literal(megaNames.get(m.mega - 1)).withStyle(ChatFormatting.YELLOW));
+            }
+            megaTip.add(tr("feurcalc.tip.cycle"));
+            chip(g, teraX + teraW + 4 + toggleW + 4, ty, megaW, h, megaLabel, m.mega > 0 ? 0xFFFFB0E0 : C_DIM, m.mega > 0, true,
+                    mx, my, () -> {
+                        m.mega = (m.mega + 1) % (count + 1);
+                        if (m.mega > 0) m.tera = false;
+                    }, () -> m.mega = 0, megaTip);
+        }
 
         // Ligne 3 : statut | vitesse
         final int y3 = l.infoY + 2 * rowH;
@@ -1209,6 +1234,9 @@ public final class FeurcalcScreen extends Screen {
             if (r != null && !CalcState.getString(r, "desc").isEmpty()) {
                 tip.add(Component.literal(CalcState.getString(r, "desc")).withStyle(ChatFormatting.WHITE));
             }
+            if (r != null && !CalcState.getString(r, "koAfter").isEmpty()) {
+                tip.add(tr("feurcalc.tip.ko_after", endOfTurnFr(CalcState.getString(r, "koAfter"))).withStyle(ChatFormatting.AQUA));
+            }
             boolean seen = !id.isEmpty() && m.revealedMoves.contains(id);
             if (seen) {
                 tip.add(tr("feurcalc.tip.revealed_move").withStyle(ChatFormatting.GREEN));
@@ -1269,6 +1297,34 @@ public final class FeurcalcScreen extends Screen {
             }
             tipArea(mx, my, barX, ry, koRight - barX, h, tip);
         }
+    }
+
+    /** "Charizard-Mega-X" → " X", "Venusaur-Mega" → "". */
+    private static String megaSuffix(String name) {
+        int i = name.indexOf("-Mega");
+        String rest = i < 0 ? "" : name.substring(i + 5).replace("-", " ").trim();
+        return rest.isEmpty() ? "" : " " + rest;
+    }
+
+    /** Traduit la fin de la phrase de KO de Showdown : "Stealth Rock, Leftovers recovery, and toxic damage". */
+    static String endOfTurnFr(String en) {
+        String[][] words = {
+            {"Leftovers recovery", "Restes"}, {"Black Sludge recovery", "Boue Noire (soin)"}, {"Black Sludge damage", "Boue Noire"},
+            {"Grassy Terrain recovery", "Champ Herbu"}, {"Rain Dish recovery", "Cuvette"}, {"Dry Skin recovery", "Peau Sèche (soin)"},
+            {"Dry Skin damage", "Peau Sèche"}, {"Ice Body recovery", "Corps Gel"}, {"Poison Heal", "Soin Poison"},
+            {"Shell Bell recovery", "Grelot Coque"}, {"Leech Seed damage", "Vampigraine"}, {"Leech Seed recovery", "Vampigraine (soin)"},
+            {"Salt Cure damage", "Salaison"}, {"toxic damage", "poison grave"}, {"poison damage", "poison"},
+            {"burn damage", "brûlure"}, {"sandstorm damage", "tempête de sable"}, {"hail damage", "grêle"},
+            {"Solar Power damage", "Force Soleil"}, {"Sticky Barb damage", "Piquants"}, {"Bad Dreams", "Mauvais Rêve"},
+            {"Stealth Rock", "Piège de Roc"}, {"layers of Spikes", "couches de Picots"}, {"layer of Spikes", "couche de Picots"},
+            {"Steelsurge", "Pics Acier"}, {"Life Orb recoil", "Orbe Vie"}, {"recoil damage", "contrecoup"},
+            {" and ", " et "}, {", and ", ", et "},
+        };
+        String out = en;
+        for (String[] w : words) {
+            out = out.replace(w[0], w[1]);
+        }
+        return out;
     }
 
     private String shortName(MonState m) {
@@ -1361,6 +1417,13 @@ public final class FeurcalcScreen extends Screen {
                 List.of(tr("feurcalc.tip.hazards", who), tr("feurcalc.tip.cycle")));
         chip(g, l.x + l.w - w, y, w, h, Names.tr("feurcalc.side.tailwind"), C_TEXT, side.tailwind, true, mx, my,
                 () -> side.tailwind = !side.tailwind, null, List.of(tr("feurcalc.tip.tailwind", who)));
+        // Dégâts de fin de tour (comptés dans les chances de KO)
+        y += rowH;
+        int halfW = (l.w - gap) / 2;
+        chip(g, l.x, y, halfW, h, Names.tr("feurcalc.side.leech_seed"), C_TEXT, side.seeded, true, mx, my,
+                () -> side.seeded = !side.seeded, null, List.of(tr("feurcalc.tip.leech_seed", who)));
+        chip(g, l.x + l.w - halfW, y, halfW, h, Names.tr("feurcalc.side.salt_cure"), C_TEXT, side.saltCure, true, mx, my,
+                () -> side.saltCure = !side.saltCure, null, List.of(tr("feurcalc.tip.salt_cure", who)));
         if (layoutDoubles && state.field.doubles) {
             // Le partenaire en combat double
             y += rowH;
@@ -1389,6 +1452,19 @@ public final class FeurcalcScreen extends Screen {
         List<Species> all = new ArrayList<>(PokemonSpecies.getSpecies());
         all.sort(Comparator.comparingInt(Species::getNationalPokedexNumber));
         List<Picker.Entry> entries = new ArrayList<>();
+        // Adversaires déjà croisés en combat (le plus récent en premier), avec ce qu'ils ont révélé
+        if (!CalcState.SEEN_OPPONENTS.isEmpty()) {
+            entries.add(Picker.Entry.header(Names.tr("feurcalc.picker.seen")));
+            List<Map.Entry<UUID, MonState>> seen = new ArrayList<>(CalcState.SEEN_OPPONENTS.entrySet());
+            java.util.Collections.reverse(seen);
+            for (Map.Entry<UUID, MonState> e : seen) {
+                MonState sm = e.getValue();
+                String label = shortName(sm) + " · " + Names.tr("feurcalc.level_short", sm.level);
+                entries.add(Picker.Entry.of("seen:" + e.getKey(), label, "", null, false, sm.species.getName())
+                        .withGroup(Names.tr("feurcalc.picker.seen"), null));
+            }
+            entries.add(Picker.Entry.header(Names.tr("feurcalc.picker.species")));
+        }
         for (Species species : all) {
             String name = species.getTranslatedName().getString();
             String number = "#" + species.getNationalPokedexNumber();
@@ -1408,6 +1484,14 @@ public final class FeurcalcScreen extends Screen {
             }
         }
         openPicker(tr("feurcalc.picker.species"), entries, x, y, e -> {
+            if (e.id().startsWith("seen:")) {
+                MonState seen = CalcState.SEEN_OPPONENTS.get(UUID.fromString(e.id().substring(5)));
+                if (seen != null) {
+                    mon(s).copyFrom(seen);
+                    state.tick();
+                }
+                return;
+            }
             FormData form = pickerForms.get(e.id());
             if (form == null) {
                 return;

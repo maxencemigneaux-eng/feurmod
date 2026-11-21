@@ -40,6 +40,8 @@ public final class MonState {
     public String nature = "hardy";
     public String teraType = "";
     public boolean tera = false;
+    /** Méga-évolution : 0 = non, 1 = première forme Méga (ou X), 2 = Méga Y. */
+    public int mega = 0;
     public final int[] ivs = {31, 31, 31, 31, 31, 31};
     public final int[] evs = {0, 0, 0, 0, 0, 0};
     /** Index 0 (PV) inutilisé. */
@@ -99,6 +101,7 @@ public final class MonState {
         nature = o.nature;
         teraType = o.teraType;
         tera = o.tera;
+        mega = o.mega;
         System.arraycopy(o.ivs, 0, ivs, 0, 6);
         System.arraycopy(o.evs, 0, evs, 0, 6);
         System.arraycopy(o.boosts, 0, boosts, 0, 6);
@@ -272,6 +275,7 @@ public final class MonState {
         nature = "hardy";
         teraType = firstType(form);
         tera = false;
+        mega = 0;
         for (int i = 0; i < 6; i++) {
             ivs[i] = 31;
             evs[i] = 0;
@@ -427,6 +431,7 @@ public final class MonState {
         o.addProperty("nature", nature);
         o.addProperty("teraType", teraType);
         o.addProperty("tera", tera);
+        o.addProperty("mega", mega);
         o.addProperty("status", status);
         o.addProperty("hpPercent", hpPercent);
         o.add("ivs", statObject(ivs));

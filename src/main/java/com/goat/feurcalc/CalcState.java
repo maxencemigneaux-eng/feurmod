@@ -27,6 +27,10 @@ import java.util.concurrent.atomic.AtomicInteger;
 public final class CalcState {
     public static final CalcState INSTANCE = new CalcState();
 
+    /** Adversaires croisés en combat depuis le lancement du jeu (le plus récent en dernier), avec ce qu'ils ont révélé. */
+    public static final java.util.LinkedHashMap<UUID, MonState> SEEN_OPPONENTS = new java.util.LinkedHashMap<>();
+    private static final int MAX_SEEN = 24;
+
     public final MonState a = new MonState();
     public final MonState b = new MonState();
     public final FieldState field = new FieldState();
@@ -246,6 +250,19 @@ public final class CalcState {
                 b.updateFromBattle(opp);
                 lastOppSig = sig;
             }
+            rememberOpponent(opp.getUuid(), b);
+        }
+    }
+
+    /** Garde une copie de l'adversaire (et de ce qu'il a révélé) pour la liste « Adversaires déjà vus ». */
+    private static void rememberOpponent(UUID uuid, MonState m) {
+        if (m.isEmpty()) {
+            return;
+        }
+        SEEN_OPPONENTS.remove(uuid);
+        SEEN_OPPONENTS.put(uuid, m.copy());
+        while (SEEN_OPPONENTS.size() > MAX_SEEN) {
+            SEEN_OPPONENTS.remove(SEEN_OPPONENTS.keySet().iterator().next());
         }
     }
 

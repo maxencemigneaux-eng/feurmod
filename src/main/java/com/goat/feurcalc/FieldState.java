@@ -23,6 +23,9 @@ public final class FieldState {
         // Combat double : soutien du partenaire
         public boolean helpingHand;
         public boolean friendGuard;
+        // Dégâts de fin de tour subis par le Pokémon de ce côté
+        public boolean seeded;
+        public boolean saltCure;
 
         public Side copy() {
             Side s = new Side();
@@ -39,6 +42,8 @@ public final class FieldState {
             spikes = o.spikes;
             helpingHand = o.helpingHand;
             friendGuard = o.friendGuard;
+            seeded = o.seeded;
+            saltCure = o.saltCure;
         }
 
         JsonObject toRequest(boolean doubles) {
@@ -52,6 +57,8 @@ public final class FieldState {
             // Coup d'Main / Garde-Ami : seulement en combat double
             o.addProperty("helpingHand", doubles && helpingHand);
             o.addProperty("friendGuard", doubles && friendGuard);
+            o.addProperty("seeded", seeded);
+            o.addProperty("saltCure", saltCure);
             return o;
         }
     }

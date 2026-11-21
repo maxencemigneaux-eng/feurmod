@@ -38,10 +38,39 @@ function makeSide(s) {
     isHelpingHand: !!s.helpingHand,
     isFriendGuard: !!s.friendGuard,
     isProtected: false,
+    isSeeded: !!s.seeded,
+    isSaltCure: !!s.saltCure,
   });
 }
 
+// Les Méga-évolutions d'une espèce (ex. Dracaufeu → ["Charizard-Mega-X", "Charizard-Mega-Y"])
+function megaNames(speciesId) {
+  const base = gen.species.get(toID(speciesId));
+  if (!base) return [];
+  const root = base.baseSpecies ? gen.species.get(toID(base.baseSpecies)) || base : base;
+  return (root.otherFormes || []).filter((n) => /-Mega/.test(n));
+}
+
 function makePokemon(p) {
+  // Méga-évolution : on remplace l'espèce par sa forme Méga (stats, types, talent) et on lui donne sa méga-gemme
+  if (p.mega > 0) {
+    const megas = megaNames(p.species);
+    if (megas.length) {
+      const ms = gen.species.get(toID(megas[Math.min(p.mega, megas.length) - 1]));
+      if (ms) {
+        p = Object.assign({}, p, {
+          species: ms.name,
+          name: undefined,
+          baseStats: undefined,
+          types: undefined,
+          weightkg: undefined,
+          ability: ms.abilities && ms.abilities[0],
+          item: ms.requiredItem || '', // un Méga tient sa méga-gemme (pas de Restes)
+          tera: false,
+        });
+      }
+    }
+  }
   const known = gen.species.get(toID(p.species));
   const overrides = {};
   if (p.baseStats) overrides.baseStats = statTable(p.baseStats, 50);
@@ -116,6 +145,9 @@ function moveResults(attacker, defender, moves, field, crit) {
         try {
           const ko = res.kochance(false);
           r.ko = ko.text || '';
+          // Ce qui compte en plus à la fin du tour (Restes, poison, Vampigraine, Piège de Roc...)
+          const after = /after (.+)$/.exec(r.ko);
+          if (after) r.koAfter = after[1];
           r.koN = ko.n || 0;
           r.koChance = ko.chance == null ? 0 : ko.chance;
         } catch (e) { /* pas de chance de KO calculable */ }
@@ -170,6 +202,8 @@ function calc(json) {
     a: summary(a, fieldAB, fieldAB.attackerSide),
     b: summary(b, fieldBA, fieldBA.attackerSide),
   };
+  out.a.megas = megaNames(q.a.species);
+  out.b.megas = megaNames(q.b.species);
   out.a.moves = moveResults(a, b, q.a.moves, fieldAB, q.crit);
   out.b.moves = moveResults(b, a, q.b.moves, fieldBA, q.crit);
   return JSON.stringify(out);
