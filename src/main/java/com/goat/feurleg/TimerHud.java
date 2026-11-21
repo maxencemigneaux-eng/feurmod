@@ -34,7 +34,7 @@ public final class TimerHud {
 
         List<TimerStore.Timer> timers = TimerStore.get().list();
         Font tr = client.font;
-        String title = "Légendaires";
+        String title = "Feur-Leg";
         String hint = "ouvre /leg pour charger les timers";
 
         // Préparer les lignes et mesurer.

@@ -5,7 +5,7 @@ Pour **Cobblemon 1.8.x** (Fabric, Minecraft 1.21.1). Regroupe quatre mods, plus 
 | Fonction | Comment l'utiliser |
 |---|---|
 | **Annuler** en combat (ex-Cobblemon Undo) | Boutons **Annuler** / **Envoyer** en bas à gauche de l'écran de combat |
-| **FeurWiki** : fiche Pokémon (ex-Feurinfo) | `/feurwiki dracaufeu` (ou `/feurinfo`) |
+| **FeurWiki** : fiche Pokémon (ex-Feurinfo) | `/feurwiki dracaufeu` |
 | **Calculateur de dégâts** façon Showdex (ex-Feurcalc) | Touche **J**, bouton **Feurcalc** en combat, ou `/feurcalc [pokémon]` |
 | **Timers des légendaires** toujours affichés (ex-Feurleg) | Ouvre `/leg` une fois ; touche **K** pour afficher / cacher |
 | **Recherche dans le PC** | Barre au-dessus du PC, ou `/feursearch <texte>` |
@@ -31,7 +31,7 @@ l'adversaire n'a pas joué.
 Par défaut, seulement **contre un joueur**. Réglages dans `config/cobblemon_undo.json` :
 `"confirmerAvantEnvoi"` (mettre `false` pour l'envoi immédiat) et `"aussiContrePnjEtSauvages"`.
 
-## FeurWiki — `/feurwiki` (ou `/feurinfo`)
+## FeurWiki — `/feurwiki`
 
 - `/feurwiki dracaufeu` (nom français, anglais ou numéro ; **Tab** pour l'autocomplétion).
 - **Modèle 3D** (glisser pour tourner), formes **< >**, version shiny **☆ / ★**.
