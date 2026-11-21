@@ -305,5 +305,6 @@
   "feurinfo.weak.abilities": "Ce que ses talents changent",
   "feurinfo.weak.no_ability": "Ses talents ne changent rien à ces dégâts.",
   "feurinfo.open_calc": "Feurcalc ⚔",
-  "feurinfo.open_calc.tip": "Ouvrir le calculateur de dégâts avec ce Pokémon en face (avec son set le plus joué)"
+  "feurinfo.open_calc.tip": "Ouvrir le calculateur de dégâts avec ce Pokémon en face (avec son set le plus joué)",
+  "feurinfo.tab.evos": "Évos"
 }

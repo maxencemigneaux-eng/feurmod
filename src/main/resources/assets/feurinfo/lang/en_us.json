@@ -170,5 +170,6 @@
   "feurinfo.weak.abilities": "What its abilities change",
   "feurinfo.weak.no_ability": "Its abilities don't change this damage.",
   "feurinfo.open_calc": "Feurcalc ⚔",
-  "feurinfo.open_calc.tip": "Open the damage calculator with this Pokémon as the opponent (with its most used set)"
+  "feurinfo.open_calc.tip": "Open the damage calculator with this Pokémon as the opponent (with its most used set)",
+  "feurinfo.tab.evos": "Evos"
 }
