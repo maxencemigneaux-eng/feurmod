@@ -97,7 +97,18 @@ public final class FeurlegClient implements ClientModInitializer {
             client.gui.setTitle(Component.literal(title));
         }
         if (cfg.alertSound) {
-            // Volume plein (l'ancienne version jouait à 25 %, presque inaudible).
+            playAlertSound(client, pitch);
+        }
+    }
+
+    private static final net.minecraft.sounds.SoundEvent DAMN_LES_GENS = net.minecraft.sounds.SoundEvent.createVariableRangeEvent(
+            net.minecraft.resources.ResourceLocation.fromNamespaceAndPath("feurleg", "alert.damn_les_gens"));
+
+    /** Le son choisi dans les réglages (cloche, ou "Damn les gens"). Aussi utilisé pour l'essai dans /feurmod. */
+    public static void playAlertSound(Minecraft client, float pitch) {
+        if ("damn".equals(FeurlegConfig.get().alertSoundChoice)) {
+            client.getSoundManager().play(SimpleSoundInstance.forUI(DAMN_LES_GENS, 1.0f, 1.0f));
+        } else {
             client.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.NOTE_BLOCK_BELL.value(), pitch, 1.0f));
         }
     }

@@ -1,0 +1,8 @@
+{
+  "alert.damn_les_gens": {
+    "category": "master",
+    "sounds": [
+      { "name": "feurleg:damn_les_gens", "stream": false }
+    ]
+  }
+}

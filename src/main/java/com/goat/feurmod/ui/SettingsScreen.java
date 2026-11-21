@@ -85,7 +85,9 @@ public final class SettingsScreen extends Screen {
                 () -> { leg.warnSeconds = stepWarn(leg.warnSeconds, 1); FeurlegConfig.save(); },
                 () -> { leg.warnSeconds = stepWarn(leg.warnSeconds, -1); FeurlegConfig.save(); },
                 "Quand afficher l'alerte au milieu de l'écran", () -> leg.warnSeconds > 0),
-            toggle("Son d'alerte", () -> leg.alertSound, v -> leg.alertSound = v, "Cloche quand il reste peu de temps et à 0", FeurlegConfig::save),
+            new Option("Son d'alerte", () -> !leg.alertSound ? "Aucun" : "damn".equals(leg.alertSoundChoice) ? "Damn les gens" : "Cloche",
+                () -> { cycleSound(leg, 1); }, () -> { cycleSound(leg, -1); },
+                "Le son quand il reste peu de temps et à 0. Chaque clic te fait écouter le son choisi.", () -> leg.alertSound),
             toggle("Message au milieu de l'écran", () -> leg.alertMessage, v -> leg.alertMessage = v,
                 "Grand titre avec le nom de la zone", FeurlegConfig::save))));
     }
@@ -96,6 +98,18 @@ public final class SettingsScreen extends Screen {
             save.run();
         };
         return new Option(label, () -> get.get() ? "Oui" : "Non", flip, flip, tip, get);
+    }
+
+    /** Aucun → Cloche → Damn les gens, et on fait écouter le son choisi. */
+    private static void cycleSound(FeurlegConfig leg, int dir) {
+        int cur = !leg.alertSound ? 0 : "damn".equals(leg.alertSoundChoice) ? 2 : 1;
+        int next = Math.floorMod(cur + dir, 3);
+        leg.alertSound = next != 0;
+        leg.alertSoundChoice = next == 2 ? "damn" : "cloche";
+        FeurlegConfig.save();
+        if (next != 0) {
+            com.goat.feurleg.FeurlegClient.playAlertSound(net.minecraft.client.Minecraft.getInstance(), 1.2f);
+        }
     }
 
     private static void themeChanged() {
