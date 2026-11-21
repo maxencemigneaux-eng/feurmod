@@ -12,6 +12,7 @@ import com.cobblemon.mod.common.api.types.ElementalTypes;
 import com.cobblemon.mod.common.client.CobblemonClient;
 import com.cobblemon.mod.common.client.gui.battle.BattleGUI;
 import com.cobblemon.mod.common.pokemon.FormData;
+import com.cobblemon.mod.common.pokemon.Pokemon;
 import com.cobblemon.mod.common.pokemon.Nature;
 import com.cobblemon.mod.common.pokemon.Species;
 import com.goat.feurmod.ui.Theme;
@@ -1488,6 +1489,20 @@ public final class FeurcalcScreen extends Screen {
         List<Species> all = new ArrayList<>(PokemonSpecies.getSpecies());
         all.sort(Comparator.comparingInt(Species::getNationalPokedexNumber));
         List<Picker.Entry> entries = new ArrayList<>();
+        // Ton équipe (vraies stats : IV, EV, nature, talent, objet, attaques)
+        List<Pokemon> team = CalcState.party();
+        if (!team.isEmpty()) {
+            String teamGroup = Names.tr("feurcalc.picker.team");
+            entries.add(Picker.Entry.header(teamGroup));
+            for (int i = 0; i < team.size(); i++) {
+                Pokemon p = team.get(i);
+                String label = p.getDisplayName(false).getString() + " · " + Names.tr("feurcalc.level_short", p.getLevel());
+                List<String> types = Names.formTypes(p.getForm());
+                entries.add(Picker.Entry.of("team:" + i, label, "#" + (i + 1), Names.type(types.isEmpty() ? "" : types.get(0)),
+                        false, p.getSpecies().getName() + " " + p.getSpecies().getTranslatedName().getString())
+                        .withGroup(teamGroup, null));
+            }
+        }
         // Adversaires déjà croisés en combat (le plus récent en premier), avec ce qu'ils ont révélé
         if (!CalcState.SEEN_OPPONENTS.isEmpty()) {
             entries.add(Picker.Entry.header(Names.tr("feurcalc.picker.seen")));
@@ -1499,6 +1514,8 @@ public final class FeurcalcScreen extends Screen {
                 entries.add(Picker.Entry.of("seen:" + e.getKey(), label, "", null, false, sm.species.getName())
                         .withGroup(Names.tr("feurcalc.picker.seen"), null));
             }
+        }
+        if (!team.isEmpty() || !CalcState.SEEN_OPPONENTS.isEmpty()) {
             entries.add(Picker.Entry.header(Names.tr("feurcalc.picker.species")));
         }
         for (Species species : all) {
@@ -1520,6 +1537,15 @@ public final class FeurcalcScreen extends Screen {
             }
         }
         openPicker(tr("feurcalc.picker.species"), entries, x, y, e -> {
+            if (e.id().startsWith("team:")) {
+                List<Pokemon> party = CalcState.party();
+                int idx = Integer.parseInt(e.id().substring(5));
+                if (idx < party.size()) {
+                    mon(s).copyFrom(MonState.fromPokemon(party.get(idx)));
+                    state.tick();
+                }
+                return;
+            }
             if (e.id().startsWith("seen:")) {
                 MonState seen = CalcState.SEEN_OPPONENTS.get(UUID.fromString(e.id().substring(5)));
                 if (seen != null) {
