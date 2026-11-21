@@ -52,6 +52,11 @@ public final class SettingsScreen extends Screen {
                 () -> { fm.panelOpacity = fm.panelOpacity <= 40 ? 100 : fm.panelOpacity - 10; themeChanged(); },
                 "Transparence du fond des menus Feurinfo / Feurcalc (40 à 100 %)", () -> true))));
 
+        sections.add(new Section("Calculateur de dégâts", List.of(
+            toggle("Tous les Pokémon au niveau 100", () -> fm.calcLevel100, v -> fm.calcLevel100 = v,
+                "Oui : chaque Pokémon arrive au niv. 100 dans le calculateur (tu peux toujours baisser le niveau à la main). "
+                    + "Non : son vrai niveau.", FeurmodConfig::save))));
+
         UndoConfig undo = UndoConfig.get();
         sections.add(new Section("Combat : Annuler / Envoyer", List.of(
             toggle("Confirmer avant d'envoyer", () -> undo.confirmerAvantEnvoi, v -> undo.confirmerAvantEnvoi = v,

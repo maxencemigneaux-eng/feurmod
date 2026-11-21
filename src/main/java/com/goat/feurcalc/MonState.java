@@ -35,7 +35,7 @@ public final class MonState {
     public Set<String> aspects = Collections.emptySet();
     public String displayName = "";
 
-    public int level = 50;
+    public int level = 100;
     public String ability = "";
     public String item = "";
     public String nature = "hardy";
@@ -157,7 +157,7 @@ public final class MonState {
         m.form = pokemon.getForm();
         m.aspects = new HashSet<>(pokemon.getAspects());
         m.displayName = pokemon.getDisplayName(false).getString();
-        m.level = pokemon.getLevel();
+        m.level = defaultLevel(pokemon.getLevel());
         try {
             m.ability = pokemon.getAbility().getName();
         } catch (Throwable ignored) {
@@ -189,6 +189,14 @@ public final class MonState {
         return m;
     }
 
+    /**
+     * Niveau mis automatiquement dans le calculateur : 100 (réglage par défaut, modifiable dans /feurmod),
+     * sinon le vrai niveau. Il reste toujours modifiable à la main dans le calculateur.
+     */
+    public static int defaultLevel(int realLevel) {
+        return com.goat.feurmod.FeurmodConfig.get().calcLevel100 ? 100 : Math.max(1, Math.min(100, realLevel));
+    }
+
     /** Une espèce choisie à la main : valeurs par défaut (puis le spread sauvegardé s'il existe). */
     public static MonState fromForm(Species species, FormData form, int level) {
         MonState m = new MonState();
@@ -207,7 +215,7 @@ public final class MonState {
         Species species = battlePokemon.getSpecies();
         Set<String> aspects = battleAspects(battlePokemon);
         FormData form = species.getForm(aspects);
-        MonState m = fromForm(species, form, battlePokemon.getLevel());
+        MonState m = fromForm(species, form, defaultLevel(battlePokemon.getLevel()));
         m.source = Source.BATTLE;
         m.uuid = battlePokemon.getUuid();
         m.aspects = aspects;

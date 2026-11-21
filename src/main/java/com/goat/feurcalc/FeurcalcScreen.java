@@ -1568,7 +1568,7 @@ public final class FeurcalcScreen extends Screen {
                 return;
             }
             MonState m = mon(s);
-            int level = m.isEmpty() ? 50 : m.level;
+            int level = MonState.defaultLevel(m.isEmpty() ? 50 : m.level);
             MonState fresh = MonState.fromForm(form.getSpecies(), form, level);
             if (!SavedSets.apply(fresh)) {
                 fresh.autoSet = true; // le set le plus joué, dès que les sets sont chargés

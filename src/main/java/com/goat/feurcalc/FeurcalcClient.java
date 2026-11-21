@@ -96,7 +96,7 @@ public final class FeurcalcClient implements ClientModInitializer {
     public static void openWith(Minecraft client, Species species, FormData form, @Nullable Screen parent) {
         CalcState state = CalcState.INSTANCE;
         state.fillFromParty();
-        int level = state.a.isEmpty() ? 50 : state.a.level;
+        int level = MonState.defaultLevel(state.a.isEmpty() ? 50 : state.a.level);
         MonState opponent = MonState.fromForm(species, form, level);
         if (!SavedSets.apply(opponent)) {
             opponent.autoSet = true; // le set le plus joué, dès que les sets sont chargés

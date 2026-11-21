@@ -22,6 +22,8 @@ public final class FeurmodConfig {
 
     /** Index dans ACCENT_COLORS. */
     public int accent = 0;
+    /** Calculateur : mettre tous les Pokémon au niveau 100 (sinon leur vrai niveau). Toujours modifiable à la main. */
+    public boolean calcLevel100 = true;
     /** Opacité du fond des menus, en % (40 à 100). */
     public int panelOpacity = 100;
 
