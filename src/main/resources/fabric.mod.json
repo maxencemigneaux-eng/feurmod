@@ -3,19 +3,28 @@
   "id": "feurmod",
   "version": "${version}",
   "name": "Feurmod",
-  "description": "Les mods Cobblemon de Goat en un seul : bouton « Annuler » en combat (comme Showdown), fiche Pokémon /feurinfo (modèle 3D, talents, stats, attaques) et calculateur de dégâts façon Showdex (/feurcalc, touche J). Calculs : @smogon/calc (MIT).",
-  "authors": ["Goat"],
+  "description": "Les mods Cobblemon de Goat en un seul : bouton « Annuler » en combat (comme Showdown), fiche Pokémon /feurinfo (modèle 3D, talents, stats, attaques) et calculateur de dégâts façon Showdex (/feurcalc, touche J) et timers des légendaires toujours affichés (ex-Feurleg). Calculs : @smogon/calc (MIT).",
+  "authors": [
+    "Goat"
+  ],
   "environment": "*",
   "entrypoints": {
-    "main": ["com.goat.cobblemonundo.CobblemonUndo"],
+    "main": [
+      "com.goat.cobblemonundo.CobblemonUndo"
+    ],
     "client": [
       "com.goat.cobblemonundo.client.CobblemonUndoClient",
       "com.goat.feurinfo.FeurinfoClient",
-      "com.goat.feurcalc.FeurcalcClient"
+      "com.goat.feurcalc.FeurcalcClient",
+      "com.goat.feurleg.FeurlegClient"
     ]
   },
   "mixins": [
-    "cobblemon_undo.mixins.json"
+    "cobblemon_undo.mixins.json",
+    {
+      "config": "feurleg.mixins.json",
+      "environment": "client"
+    }
   ],
   "depends": {
     "fabricloader": ">=0.16.0",
@@ -27,6 +36,7 @@
   "breaks": {
     "cobblemon_undo": "*",
     "feurinfo": "*",
-    "feurcalc": "*"
+    "feurcalc": "*",
+    "feurleg": "*"
   }
 }

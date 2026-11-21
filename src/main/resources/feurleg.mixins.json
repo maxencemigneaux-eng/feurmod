@@ -1,0 +1,13 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "com.goat.feurleg.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "client": [
+    "ScreenMixin",
+    "TextRendererMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 0
+  }
+}
