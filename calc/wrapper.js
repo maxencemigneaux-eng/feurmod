@@ -96,6 +96,9 @@ function makePokemon(p) {
     overrides,
   };
   if (p.tera && p.teraType) opts.teraType = cap(p.teraType);
+  // Paléosynthèse / Charge Quantique : sans ça, @smogon/calc n'applique jamais le boost (même au Soleil / sur
+  // Champ Électrifié / avec l'Énergie Booster). 'auto' = la meilleure stat, comme dans le jeu.
+  opts.boostedStat = 'auto';
   const mon = new Pokemon(gen, known ? known.name : (p.name || p.species), opts);
   // Types donnés par Cobblemon (formes / datapacks) : remplacés après coup
   if (p.types && p.types.length) {
