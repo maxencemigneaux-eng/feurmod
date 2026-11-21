@@ -866,7 +866,7 @@ public final class FeurcalcScreen extends Screen {
 
         // Types (ou type Téra si activé)
         int tx = l.x + nameW + 6;
-        List<String> types = m.tera && !m.teraType.isEmpty() ? List.of(m.teraType) : Names.formTypes(m.form);
+        List<String> types = m.tera && !m.teraType.isEmpty() ? List.of(m.teraType) : Names.formTypes(m.calcForm());
         for (String type : types) {
             ElementalType et = Names.type(type);
             final int ix = tx;
@@ -1123,9 +1123,18 @@ public final class FeurcalcScreen extends Screen {
 
         text(Names.tr("feurcalc.tera"), rightCol, textY(y2, h), C_LABEL);
         int toggleW = 24;
-        JsonObject megaSummary = state.side(s == 0);
+        // Formes Méga : d'abord celles de Cobblemon (Méga du serveur, même custom), sinon celles de Showdown
+        List<FormData> megaForms = MonState.megaForms(m.species);
+        if (megaForms.contains(m.form)) {
+            megaForms.clear(); // déjà Méga-évolué (en combat) : pas de bouton
+        }
         List<String> megaNames = new ArrayList<>();
-        if (megaSummary != null && megaSummary.has("megas")) {
+        for (FormData f : megaForms) {
+            megaNames.add(f.getName());
+        }
+        JsonObject megaSummary = state.side(s == 0);
+        if (megaNames.isEmpty() && megaSummary != null && megaSummary.has("megas")
+                && !MonState.megaForms(m.species).contains(m.form)) {
             megaSummary.getAsJsonArray("megas").forEach(e -> megaNames.add(e.getAsString()));
         }
         if (m.mega > megaNames.size()) {
@@ -1154,10 +1163,8 @@ public final class FeurcalcScreen extends Screen {
             }
             megaTip.add(tr("feurcalc.tip.cycle"));
             chip(g, teraX + teraW + 4 + toggleW + 4, ty, megaW, h, megaLabel, m.mega > 0 ? 0xFFFFB0E0 : C_DIM, m.mega > 0, true,
-                    mx, my, () -> {
-                        m.mega = (m.mega + 1) % (count + 1);
-                        if (m.mega > 0) m.tera = false;
-                    }, () -> m.mega = 0, megaTip);
+                    mx, my, () -> setMega(m, (m.mega + 1) % (count + 1), megaForms, megaNames),
+                    () -> setMega(m, 0, megaForms, megaNames), megaTip);
         }
 
         // Ligne 3 : statut | vitesse
@@ -1299,11 +1306,75 @@ public final class FeurcalcScreen extends Screen {
         }
     }
 
-    /** "Charizard-Mega-X" → " X", "Venusaur-Mega" → "". */
+    /** "Charizard-Mega-X" / "Mega-X" / "mega_y" → " X", "Venusaur-Mega" / "Mega" → "". */
     private static String megaSuffix(String name) {
-        int i = name.indexOf("-Mega");
-        String rest = i < 0 ? "" : name.substring(i + 5).replace("-", " ").trim();
-        return rest.isEmpty() ? "" : " " + rest;
+        String lower = name.toLowerCase(Locale.ROOT);
+        int i = lower.indexOf("mega");
+        String rest = i < 0 ? "" : name.substring(i + 4).replaceAll("[-_]", " ").trim();
+        return rest.isEmpty() ? "" : " " + rest.toUpperCase(Locale.ROOT);
+    }
+
+    // Talents qui posent une météo / un champ en entrant (Méga-Dracaufeu Y → Soleil, Méga-Tyranocif → Sable...)
+    private static final Map<String, String> WEATHER_ABILITIES = Map.of(
+            "drought", "Sun", "orichalcumpulse", "Sun", "drizzle", "Rain", "sandstream", "Sand", "snowwarning", "Snow");
+    private static final Map<String, String> TERRAIN_ABILITIES = Map.of(
+            "electricsurge", "Electric", "hadronengine", "Electric", "grassysurge", "Grassy",
+            "psychicsurge", "Psychic", "mistysurge", "Misty");
+    /** Talents des Méga de Showdown qui changent la météo (quand Cobblemon n'a pas la forme). */
+    private static final Map<String, String> SHOWDOWN_MEGA_ABILITY = Map.of(
+            "Charizard-Mega-Y", "drought", "Tyranitar-Mega", "sandstream", "Abomasnow-Mega", "snowwarning");
+
+    @Nullable private String weatherBeforeMega;
+    @Nullable private String weatherSetByMega;
+    @Nullable private String terrainBeforeMega;
+    @Nullable private String terrainSetByMega;
+
+    /** Active / change / enlève la Méga : talent de la forme Méga, et sa météo / son champ posés automatiquement. */
+    private void setMega(MonState m, int value, List<FormData> megaForms, List<String> megaNames) {
+        if (m.mega == 0 && value > 0) {
+            m.abilityBeforeMega = m.ability;
+        }
+        m.mega = value;
+        String ability = null;
+        if (value > 0) {
+            m.tera = false;
+            if (!megaForms.isEmpty() && value <= megaForms.size()) {
+                ability = MonState.defaultAbility(megaForms.get(value - 1));
+                if (ability != null && !ability.isEmpty()) {
+                    m.ability = ability;
+                }
+            } else if (value <= megaNames.size()) {
+                ability = SHOWDOWN_MEGA_ABILITY.get(megaNames.get(value - 1));
+            }
+        } else if (m.abilityBeforeMega != null) {
+            m.ability = m.abilityBeforeMega;
+            m.abilityBeforeMega = null;
+        }
+
+        FieldState f = state.field;
+        String id = ability == null ? "" : Names.normalize(ability);
+        String weather = WEATHER_ABILITIES.get(id);
+        String terrain = TERRAIN_ABILITIES.get(id);
+        // On remet la météo / le champ d'avant si c'est la Méga qui les avait posés
+        if (weatherSetByMega != null && weather == null && weatherSetByMega.equals(f.weather)) {
+            f.weather = weatherBeforeMega == null ? "" : weatherBeforeMega;
+            weatherSetByMega = null;
+        }
+        if (terrainSetByMega != null && terrain == null && terrainSetByMega.equals(f.terrain)) {
+            f.terrain = terrainBeforeMega == null ? "" : terrainBeforeMega;
+            terrainSetByMega = null;
+        }
+        if (weather != null && !weather.equals(f.weather)) {
+            if (weatherSetByMega == null) weatherBeforeMega = f.weather;
+            f.weather = weather;
+            weatherSetByMega = weather;
+        }
+        if (terrain != null && !terrain.equals(f.terrain)) {
+            if (terrainSetByMega == null) terrainBeforeMega = f.terrain;
+            f.terrain = terrain;
+            terrainSetByMega = terrain;
+        }
+        state.tick();
     }
 
     /** Traduit la fin de la phrase de KO de Showdown : "Stealth Rock, Leftovers recovery, and toxic damage". */
@@ -1351,7 +1422,7 @@ public final class FeurcalcScreen extends Screen {
 
         JsonObject summary = state.side(s == 0);
         JsonObject stats = summary != null && summary.has("stats") ? summary.getAsJsonObject("stats") : null;
-        Map<com.cobblemon.mod.common.api.pokemon.stats.Stat, Integer> base = m.form.getBaseStats();
+        Map<com.cobblemon.mod.common.api.pokemon.stats.Stat, Integer> base = m.calcForm().getBaseStats();
         for (int i = 0; i < 6; i++) {
             final int stat = i;
             int ry = statRowY(l, i);

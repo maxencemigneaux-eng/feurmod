@@ -18,6 +18,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
@@ -40,8 +41,10 @@ public final class MonState {
     public String nature = "hardy";
     public String teraType = "";
     public boolean tera = false;
-    /** Méga-évolution : 0 = non, 1 = première forme Méga (ou X), 2 = Méga Y. */
+    /** Méga-évolution : 0 = non, 1 = première forme Méga (ou X), 2 = Méga Y... */
     public int mega = 0;
+    /** Talent d'avant la Méga-évolution, pour le remettre quand on l'enlève. */
+    @Nullable public String abilityBeforeMega;
     public final int[] ivs = {31, 31, 31, 31, 31, 31};
     public final int[] evs = {0, 0, 0, 0, 0, 0};
     /** Index 0 (PV) inutilisé. */
@@ -102,6 +105,7 @@ public final class MonState {
         teraType = o.teraType;
         tera = o.tera;
         mega = o.mega;
+        abilityBeforeMega = o.abilityBeforeMega;
         System.arraycopy(o.ivs, 0, ivs, 0, 6);
         System.arraycopy(o.evs, 0, evs, 0, 6);
         System.arraycopy(o.boosts, 0, boosts, 0, 6);
@@ -276,6 +280,7 @@ public final class MonState {
         teraType = firstType(form);
         tera = false;
         mega = 0;
+        abilityBeforeMega = null;
         for (int i = 0; i < 6; i++) {
             ivs[i] = 31;
             evs[i] = 0;
@@ -418,11 +423,44 @@ public final class MonState {
     // =======================================================================================
     // Requête pour le calculateur
 
+    /**
+     * Les formes Méga de l'espèce dans Cobblemon : celles du serveur (Mega Showdown, Méga custom...),
+     * avec leurs vraies stats, types et talents.
+     */
+    public static List<FormData> megaForms(@Nullable Species species) {
+        List<FormData> out = new ArrayList<>();
+        if (species == null) {
+            return out;
+        }
+        FormData standard = species.getStandardForm();
+        for (FormData f : species.getForms()) {
+            String n = (f.getName() + " " + f.showdownId()).toLowerCase(Locale.ROOT);
+            if (f != standard && n.contains("mega") && !out.contains(f)) {
+                out.add(f);
+            }
+        }
+        return out;
+    }
+
+    /** La forme utilisée pour le calcul : la forme Méga choisie, sinon la forme actuelle. */
+    public FormData calcForm() {
+        if (mega > 0 && form != null) {
+            List<FormData> megas = megaForms(species);
+            if (mega <= megas.size() && !megas.contains(form)) {
+                return megas.get(mega - 1);
+            }
+        }
+        return form;
+    }
+
     public JsonObject toRequest() {
         JsonObject o = new JsonObject();
         if (form == null || species == null) {
             return o;
         }
+        FormData form = calcForm();
+        // Méga trouvée dans Cobblemon : on envoie directement la forme Méga ; sinon Showdown s'en charge
+        boolean cobblemonMegas = !megaForms(species).isEmpty();
         o.addProperty("species", form.showdownId());
         o.addProperty("name", displayName);
         o.addProperty("level", level);
@@ -431,7 +469,7 @@ public final class MonState {
         o.addProperty("nature", nature);
         o.addProperty("teraType", teraType);
         o.addProperty("tera", tera);
-        o.addProperty("mega", mega);
+        o.addProperty("mega", cobblemonMegas ? 0 : mega);
         o.addProperty("status", status);
         o.addProperty("hpPercent", hpPercent);
         o.add("ivs", statObject(ivs));
