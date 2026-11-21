@@ -354,7 +354,8 @@ public final class FeurinfoScreen extends Screen {
     }
 
     private List<Tab> visibleTabs() {
-        return List.of(Tab.values());
+        // Pas d'onglet Faiblesses : elles sont déjà en bas à gauche
+        return List.of(Tab.MOVES, Tab.EVOS, Tab.SET, Tab.SPAWN);
     }
 
     /** Nom de forme traduit par Cobblemon ("Forme d'Alola", "Méga-Dracaufeu X"...). */
@@ -405,6 +406,12 @@ public final class FeurinfoScreen extends Screen {
         gear.setTooltip(Tooltip.create(Component.literal("Réglages Feurmod")));
         searchW = Math.min(170, width / 3);
         searchX = gearX - 6 - searchW;
+        Component typesLabel = Component.literal("Types");
+        int typesW = font.width(typesLabel) + 12;
+        typesButtonX = searchX - 6 - typesW;
+        FlatButton typesBtn = addRenderableWidget(new FlatButton(typesButtonX, SEARCH_Y, typesW, 16, typesLabel,
+                () -> minecraft.setScreen(new TypeBrowserScreen(this, null))));
+        typesBtn.setTooltip(Tooltip.create(Component.literal("Voir tous les Pokémon d'un type (ou de deux types)")));
         search = Theme.fieldBox(font, searchX, SEARCH_Y, searchW, 16, Component.translatable("feurinfo.search.hint"));
         search.setHint(Component.translatable("feurinfo.search.hint").withStyle(s -> s.withColor(Theme.MUTED)));
         search.setMaxLength(40);
@@ -421,7 +428,7 @@ public final class FeurinfoScreen extends Screen {
         // Ouvrir le calculateur de dégâts avec ce Pokémon en face
         Component calcLabel = Component.translatable("feurinfo.open_calc");
         int calcW = font.width(calcLabel) + 14;
-        calcButton = addRenderableWidget(new FlatButton(searchX - calcW - 6, SEARCH_Y, calcW, 16, calcLabel, this::openCalc)
+        calcButton = addRenderableWidget(new FlatButton(typesButtonX - calcW - 6, SEARCH_Y, calcW, 16, calcLabel, this::openCalc)
                 .accent(0xFF2A4F86));
         calcButton.setTooltip(Tooltip.create(Component.translatable("feurinfo.open_calc.tip")));
 
@@ -525,6 +532,7 @@ public final class FeurinfoScreen extends Screen {
     }
 
     @Nullable private FlatButton shinyNormalButton;
+    private int typesButtonX;
     @Nullable private FlatButton ultraButton;
 
     private void onFiltersChanged() {
@@ -747,6 +755,12 @@ public final class FeurinfoScreen extends Screen {
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        for (Object[] t : headerTypes) {
+            if (inRect(mouseX, mouseY, (int) t[0], 8, (int) t[1], 14)) {
+                minecraft.setScreen(new TypeBrowserScreen(this, (String) t[2]));
+                return true;
+            }
+        }
         if (dropdownOpen()) {
             int h = searchResults.size() * DROP_ROW + 4;
             if (inRect(mouseX, mouseY, searchX, dropY(), searchW, h)) {
@@ -933,8 +947,12 @@ public final class FeurinfoScreen extends Screen {
         drawDropdown(graphics, mouseX, mouseY);
     }
 
+    /** Pastilles de type de l'en-tête (x, largeur, id) : clic = tous les Pokémon de ce type. */
+    private final List<Object[]> headerTypes = new ArrayList<>();
+
     /** "#0006  Dracaufeu" + les types en pastilles colorées. */
     private void drawHeader(GuiGraphics g) {
+        headerTypes.clear();
         int x = MARGIN;
         if (species == null) {
             g.drawString(font, title.copy().withStyle(ChatFormatting.BOLD), x, 11, Theme.TEXT, false);
@@ -949,7 +967,9 @@ public final class FeurinfoScreen extends Screen {
         g.drawString(font, name, x, 11, Theme.TEXT, false);
         x += font.width(name) + 8;
         for (ElementalType type : form().getTypes()) {
-            x += typePill(g, type, x, 8, 14) + 3;
+            int w = typePill(g, type, x, 8, 14);
+            headerTypes.add(new Object[]{x, w, type.getName().toLowerCase()});
+            x += w + 3;
         }
     }
 
@@ -1698,7 +1718,7 @@ public final class FeurinfoScreen extends Screen {
     }
 
     @Nullable
-    private static ElementalType elementalType(String id) {
+    static ElementalType elementalType(String id) {
         try {
             return com.cobblemon.mod.common.api.types.ElementalTypes.get(id);
         } catch (Throwable t) {
@@ -1874,7 +1894,7 @@ public final class FeurinfoScreen extends Screen {
         }
     }
 
-    private static void drawTypeIcon(GuiGraphics graphics, ElementalType type, int x, int y, int size) {
+    static void drawTypeIcon(GuiGraphics graphics, ElementalType type, int x, int y, int size) {
         int u = type.getTextureXMultiplier() * TYPE_ICON_SRC;
         RenderSystem.enableBlend();
         graphics.blit(TYPE_ICONS, x, y, size, size, u, 0, TYPE_ICON_SRC, TYPE_ICON_SRC, TYPE_ICON_SHEET_W, TYPE_ICON_SRC);
