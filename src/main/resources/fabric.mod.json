@@ -16,7 +16,8 @@
       "com.goat.cobblemonundo.client.CobblemonUndoClient",
       "com.goat.feurinfo.FeurinfoClient",
       "com.goat.feurcalc.FeurcalcClient",
-      "com.goat.feurleg.FeurlegClient"
+      "com.goat.feurleg.FeurlegClient",
+      "com.goat.feurmod.FeurmodClient"
     ]
   },
   "mixins": [
