@@ -1716,7 +1716,7 @@ public final class FeurcalcScreen extends Screen {
         }
         // Les plus jouées : tri par % décroissant
         List<Map.Entry<String, Integer>> byUsage = new ArrayList<>(usagePct.entrySet());
-        byUsage.sort((x, y) -> Integer.compare(y.getValue(), x.getValue()));
+        byUsage.sort((u1, u2) -> Integer.compare(u2.getValue(), u1.getValue()));
         for (Map.Entry<String, Integer> e : byUsage) {
             MoveTemplate template = byId.get(e.getKey());
             if (template != null && listed.add(e.getKey())) {
