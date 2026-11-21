@@ -42,7 +42,7 @@ public final class SmogonSets {
      */
     public record SmogonSet(Format format, String name, String ability, int abilityPct, List<String> items,
                             int[] itemPcts, String nature, int[] evs, int spreadPct, int[] ivs, List<String> moves,
-                            int[] movePcts, String tera, double usage, int count) {
+                            int[] movePcts, String tera, double usage, int count, List<String> moreMoves, int[] moreMovePcts) {
         public boolean isUsage() {
             return name.isEmpty();
         }
@@ -144,11 +144,41 @@ public final class SmogonSets {
         return new SmogonSet(format, str(o, "n"), str(o, "a"), o.has("ap") ? o.get("ap").getAsInt() : -1,
                 strings(o, "i"), ints(o, "ip", 0, -1), str(o, "na"), evs, o.has("sp") ? o.get("sp").getAsInt() : -1, ivs,
                 strings(o, "m"), ints(o, "mp", 0, -1), str(o, "t"), o.has("u") ? o.get("u").getAsDouble() : 0,
-                o.has("c") ? o.get("c").getAsInt() : 0);
+                o.has("c") ? o.get("c").getAsInt() : 0, strings(o, "um"), ints(o, "ump", 0, -1));
     }
 
     // =======================================================================================
     // Sets d'un Pokémon
+
+    /** Le set choisi pour ce Pokémon (null si aucun). */
+    @Nullable
+    public static SmogonSet current(MonState m) {
+        for (SmogonSet set : forMon(m)) {
+            if (set.id().equals(m.setId)) {
+                return set;
+            }
+        }
+        return null;
+    }
+
+    /** Le set d'usage (statistiques de Showdown) à utiliser pour la liste des attaques les plus jouées. */
+    @Nullable
+    public static SmogonSet usageFor(MonState m) {
+        SmogonSet cur = current(m);
+        SmogonSet best = null;
+        for (SmogonSet set : forMon(m)) {
+            if (!set.isUsage()) {
+                continue;
+            }
+            if (cur != null && set.format().equals(cur.format())) {
+                return set; // même format que le set choisi
+            }
+            if (best == null || set.count() > best.count()) {
+                best = set;
+            }
+        }
+        return best;
+    }
 
     /** Tous les sets connus pour la forme (sinon pour l'espèce), dans l'ordre d'affichage. */
     public static List<SmogonSet> forMon(MonState m) {

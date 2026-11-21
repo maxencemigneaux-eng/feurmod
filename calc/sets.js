@@ -146,7 +146,10 @@ async function main() {
         const ability = topEntries(p.abilities, ['No Ability', 'Nothing'])[0];
         const items = topEntries(p.items, ['Other']).slice(0, 3);
         const spread = topEntries(p.spreads || p.stats, ['Other'])[0];
-        const moves = topEntries(p.moves, ['Nothing', 'Other']).slice(0, 4);
+        const allMoves = topEntries(p.moves, ['Nothing', 'Other']);
+        const moves = allMoves.slice(0, 4);
+        // Les autres attaques jouées (comme la liste "Usage" de Showdex), au-delà des 4 du set
+        const more = allMoves.slice(4, 24).filter(([, v]) => v >= 0.01);
         const tera = topEntries(p.teraTypes, ['Nothing', 'Other'])[0];
         const set = { f: fi, n: '' };
         if (ability) {
@@ -166,6 +169,10 @@ async function main() {
         }
         set.m = moves.map(([k]) => toID(k));
         set.mp = moves.map(([, v]) => pct(v));
+        if (more.length) {
+          set.um = more.map(([k]) => toID(k));
+          set.ump = more.map(([, v]) => pct(v));
+        }
         if (tera) set.t = toID(tera[0]);
         const usage = p.usage && typeof p.usage === 'object' ? p.usage.weighted || p.usage.real || p.usage.raw : p.usage;
         set.u = Math.round((Number(usage) || 0) * 10000) / 10000;

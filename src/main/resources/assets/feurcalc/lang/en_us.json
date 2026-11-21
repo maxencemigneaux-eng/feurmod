@@ -185,5 +185,8 @@
   "feurcalc.tip.salt_cure": "%s is salt cured: loses 1/8 HP per turn (1/4 if Water or Steel), counted in KO chances",
   "feurcalc.tip.mega": "Mega Evolution: stats, types and ability of the Mega form (holding its Mega Stone)",
   "feurcalc.tip.ko_after": "End of turn counted: %s",
-  "feurcalc.picker.seen": "Opponents already seen"
+  "feurcalc.picker.seen": "Opponents already seen",
+  "feurcalc.moves.pool": "Current set",
+  "feurcalc.moves.usage": "Most used (Showdown)",
+  "feurcalc.moves.all": "All moves"
 }

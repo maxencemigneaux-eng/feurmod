@@ -185,5 +185,8 @@
   "feurcalc.tip.salt_cure": "%s est sous Salaison : perd 1/8 de ses PV par tour (1/4 s'il est Eau ou Acier), compté dans les chances de KO",
   "feurcalc.tip.mega": "Méga-évolution : stats, types et talent de la forme Méga (avec sa méga-gemme)",
   "feurcalc.tip.ko_after": "Compté en fin de tour : %s",
-  "feurcalc.picker.seen": "Adversaires déjà vus"
+  "feurcalc.picker.seen": "Adversaires déjà vus",
+  "feurcalc.moves.pool": "Set actuel",
+  "feurcalc.moves.usage": "Les plus jouées (Showdown)",
+  "feurcalc.moves.all": "Toutes les attaques"
 }

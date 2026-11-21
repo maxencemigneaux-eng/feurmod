@@ -1654,6 +1654,12 @@ public final class FeurcalcScreen extends Screen {
         });
     }
 
+    /** Ligne d'attaque avec son % d'utilisation à droite (comme Showdex). */
+    private Picker.Entry movePickerEntry(MoveTemplate template, int pct, boolean dim) {
+        String detail = pct >= 0 ? pct + " %" : moveDetail(template);
+        return Picker.Entry.of(template.getName(), template.getDisplayName().getString(), detail, template.getElementalType(), dim, "");
+    }
+
     private void openMovePicker(int s, int slot, int x, int y) {
         MonState m = mon(s);
         Set<String> learnable = new LinkedHashSet<>();
@@ -1670,10 +1676,62 @@ public final class FeurcalcScreen extends Screen {
             addNames(learnable, learnset.getSpecialMoves());
             addNames(learnable, learnset.getFormChangeMoves());
         }
+        // Comme Showdex : les attaques du set choisi, puis les plus jouées sur Showdown (avec leur %), puis le reste
+        Map<String, Integer> usagePct = new java.util.LinkedHashMap<>();
+        SmogonSets.SmogonSet usage = SmogonSets.usageFor(m);
+        if (usage != null) {
+            for (int i = 0; i < usage.moves().size(); i++) {
+                usagePct.put(usage.moves().get(i), i < usage.movePcts().length ? usage.movePcts()[i] : -1);
+            }
+            for (int i = 0; i < usage.moreMoves().size(); i++) {
+                usagePct.putIfAbsent(usage.moreMoves().get(i), i < usage.moreMovePcts().length ? usage.moreMovePcts()[i] : -1);
+            }
+        }
+        Set<String> pool = new LinkedHashSet<>();
+        SmogonSets.SmogonSet current = SmogonSets.current(m);
+        if (current != null) {
+            pool.addAll(current.moves());
+        }
+        for (String id : m.moves) {
+            if (!id.isEmpty()) {
+                pool.add(id);
+            }
+        }
+        Map<String, MoveTemplate> byId = new HashMap<>();
+        for (MoveTemplate template : Moves.all()) {
+            byId.put(template.getName(), template);
+        }
+
+        List<Picker.Entry> poolEntries = new ArrayList<>();
+        List<Picker.Entry> usageEntries = new ArrayList<>();
+        Set<String> listed = new java.util.HashSet<>();
+        String poolGroup = Names.tr("feurcalc.moves.pool");
+        String usageGroup = Names.tr("feurcalc.moves.usage");
+        for (String id : pool) {
+            MoveTemplate template = byId.get(id);
+            if (template != null && listed.add(id)) {
+                poolEntries.add(movePickerEntry(template, usagePct.getOrDefault(id, -1), !learnable.isEmpty() && !learnable.contains(id))
+                        .withGroup(poolGroup, List.of(Component.literal(moveDetail(template)))));
+            }
+        }
+        // Les plus jouées : tri par % décroissant
+        List<Map.Entry<String, Integer>> byUsage = new ArrayList<>(usagePct.entrySet());
+        byUsage.sort((x, y) -> Integer.compare(y.getValue(), x.getValue()));
+        for (Map.Entry<String, Integer> e : byUsage) {
+            MoveTemplate template = byId.get(e.getKey());
+            if (template != null && listed.add(e.getKey())) {
+                usageEntries.add(movePickerEntry(template, e.getValue(), !learnable.isEmpty() && !learnable.contains(e.getKey()))
+                        .withGroup(usageGroup, List.of(Component.literal(moveDetail(template)))));
+            }
+        }
+
         List<Picker.Entry> main = new ArrayList<>();
         List<Picker.Entry> others = new ArrayList<>();
         for (MoveTemplate template : Moves.all()) {
             String id = template.getName();
+            if (listed.contains(id)) {
+                continue;
+            }
             boolean learns = learnable.contains(id);
             Picker.Entry entry = Picker.Entry.of(id, template.getDisplayName().getString(), moveDetail(template),
                     template.getElementalType(), !learns, "");
@@ -1683,6 +1741,17 @@ public final class FeurcalcScreen extends Screen {
         others.sort(Comparator.comparing(e -> Names.normalize(e.label())));
         List<Picker.Entry> entries = new ArrayList<>();
         entries.add(Picker.Entry.of("", Names.tr("feurcalc.moves.none"), "", null, false, "aucune none"));
+        if (!poolEntries.isEmpty()) {
+            entries.add(Picker.Entry.header(poolGroup));
+            entries.addAll(poolEntries);
+        }
+        if (!usageEntries.isEmpty()) {
+            entries.add(Picker.Entry.header(usageGroup));
+            entries.addAll(usageEntries);
+        }
+        if (!poolEntries.isEmpty() || !usageEntries.isEmpty()) {
+            entries.add(Picker.Entry.header(Names.tr("feurcalc.moves.all")));
+        }
         entries.addAll(main);
         entries.addAll(others);
         openPicker(tr("feurcalc.picker.move", slot + 1), entries, x, y, e -> {
