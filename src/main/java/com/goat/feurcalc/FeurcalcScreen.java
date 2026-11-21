@@ -1314,65 +1314,30 @@ public final class FeurcalcScreen extends Screen {
         return rest.isEmpty() ? "" : " " + rest.toUpperCase(Locale.ROOT);
     }
 
-    // Talents qui posent une météo / un champ en entrant (Méga-Dracaufeu Y → Soleil, Méga-Tyranocif → Sable...)
-    private static final Map<String, String> WEATHER_ABILITIES = Map.of(
-            "drought", "Sun", "orichalcumpulse", "Sun", "drizzle", "Rain", "sandstream", "Sand", "snowwarning", "Snow");
-    private static final Map<String, String> TERRAIN_ABILITIES = Map.of(
-            "electricsurge", "Electric", "hadronengine", "Electric", "grassysurge", "Grassy",
-            "psychicsurge", "Psychic", "mistysurge", "Misty");
     /** Talents des Méga de Showdown qui changent la météo (quand Cobblemon n'a pas la forme). */
     private static final Map<String, String> SHOWDOWN_MEGA_ABILITY = Map.of(
             "Charizard-Mega-Y", "drought", "Tyranitar-Mega", "sandstream", "Abomasnow-Mega", "snowwarning");
 
-    @Nullable private String weatherBeforeMega;
-    @Nullable private String weatherSetByMega;
-    @Nullable private String terrainBeforeMega;
-    @Nullable private String terrainSetByMega;
-
-    /** Active / change / enlève la Méga : talent de la forme Méga, et sa météo / son champ posés automatiquement. */
+    /** Active / change / enlève la Méga : talent de la forme Méga (sa météo / son champ suivent tout seuls). */
     private void setMega(MonState m, int value, List<FormData> megaForms, List<String> megaNames) {
         if (m.mega == 0 && value > 0) {
             m.abilityBeforeMega = m.ability;
         }
         m.mega = value;
-        String ability = null;
         if (value > 0) {
             m.tera = false;
+            String ability = null;
             if (!megaForms.isEmpty() && value <= megaForms.size()) {
                 ability = MonState.defaultAbility(megaForms.get(value - 1));
-                if (ability != null && !ability.isEmpty()) {
-                    m.ability = ability;
-                }
             } else if (value <= megaNames.size()) {
                 ability = SHOWDOWN_MEGA_ABILITY.get(megaNames.get(value - 1));
+            }
+            if (ability != null && !ability.isEmpty()) {
+                m.ability = ability;
             }
         } else if (m.abilityBeforeMega != null) {
             m.ability = m.abilityBeforeMega;
             m.abilityBeforeMega = null;
-        }
-
-        FieldState f = state.field;
-        String id = ability == null ? "" : Names.normalize(ability);
-        String weather = WEATHER_ABILITIES.get(id);
-        String terrain = TERRAIN_ABILITIES.get(id);
-        // On remet la météo / le champ d'avant si c'est la Méga qui les avait posés
-        if (weatherSetByMega != null && weather == null && weatherSetByMega.equals(f.weather)) {
-            f.weather = weatherBeforeMega == null ? "" : weatherBeforeMega;
-            weatherSetByMega = null;
-        }
-        if (terrainSetByMega != null && terrain == null && terrainSetByMega.equals(f.terrain)) {
-            f.terrain = terrainBeforeMega == null ? "" : terrainBeforeMega;
-            terrainSetByMega = null;
-        }
-        if (weather != null && !weather.equals(f.weather)) {
-            if (weatherSetByMega == null) weatherBeforeMega = f.weather;
-            f.weather = weather;
-            weatherSetByMega = weather;
-        }
-        if (terrain != null && !terrain.equals(f.terrain)) {
-            if (terrainSetByMega == null) terrainBeforeMega = f.terrain;
-            f.terrain = terrain;
-            terrainSetByMega = terrain;
         }
         state.tick();
     }

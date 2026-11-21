@@ -73,7 +73,74 @@ public final class CalcState {
         }
         applyPendingSets();
         applyReveals();
+        applyAbilityField();
         requestIfChanged();
+    }
+
+    // =======================================================================================
+    // Talents qui posent une météo / un champ en entrant (Sécheresse → Soleil, Créa-Élec → Champ Électrifié...)
+
+    private static final java.util.Map<String, String> WEATHER_ABILITIES = java.util.Map.of(
+            "drought", "Sun", "orichalcumpulse", "Sun", "desolateland", "Sun",
+            "drizzle", "Rain", "primordialsea", "Rain",
+            "sandstream", "Sand", "snowwarning", "Snow");
+    private static final java.util.Map<String, String> TERRAIN_ABILITIES = java.util.Map.of(
+            "electricsurge", "Electric", "hadronengine", "Electric", "grassysurge", "Grassy",
+            "psychicsurge", "Psychic", "mistysurge", "Misty");
+
+    private final String[] lastAbility = new String[2];
+    private final String[] lastSpecies = new String[2];
+    @Nullable private String weatherBefore;
+    @Nullable private String weatherSet;
+    @Nullable private String terrainBefore;
+    @Nullable private String terrainSet;
+
+    public static boolean setsField(String ability) {
+        String id = Names.normalize(ability == null ? "" : ability);
+        return WEATHER_ABILITIES.containsKey(id) || TERRAIN_ABILITIES.containsKey(id);
+    }
+
+    /**
+     * Quand le talent d'un côté change (nouveau Pokémon, set, Méga...), on pose sa météo / son champ ;
+     * et on remet ceux d'avant si c'est un talent qui les avait posés et qu'il n'est plus là.
+     */
+    private void applyAbilityField() {
+        MonState[] mons = {a, b};
+        for (int i = 0; i < 2; i++) {
+            MonState m = mons[i];
+            String ability = m.isEmpty() ? "" : Names.normalize(m.ability);
+            String species = m.isEmpty() || m.form == null ? "" : m.calcForm().showdownId();
+            if (ability.equals(lastAbility[i]) && species.equals(lastSpecies[i])) {
+                continue;
+            }
+            boolean first = lastAbility[i] == null;
+            lastAbility[i] = ability;
+            lastSpecies[i] = species;
+            String weather = WEATHER_ABILITIES.get(ability);
+            String terrain = TERRAIN_ABILITIES.get(ability);
+            String otherAbility = Names.normalize(mons[1 - i].isEmpty() ? "" : mons[1 - i].ability);
+            // Le talent qui avait posé la météo / le champ n'est plus là (des deux côtés) : on remet comme avant
+            if (!first && weather == null && weatherSet != null && weatherSet.equals(field.weather)
+                    && !weatherSet.equals(WEATHER_ABILITIES.get(otherAbility))) {
+                field.weather = weatherBefore == null ? "" : weatherBefore;
+                weatherSet = null;
+            }
+            if (!first && terrain == null && terrainSet != null && terrainSet.equals(field.terrain)
+                    && !terrainSet.equals(TERRAIN_ABILITIES.get(otherAbility))) {
+                field.terrain = terrainBefore == null ? "" : terrainBefore;
+                terrainSet = null;
+            }
+            if (weather != null && !weather.equals(field.weather)) {
+                if (weatherSet == null) weatherBefore = field.weather;
+                field.weather = weather;
+                weatherSet = weather;
+            }
+            if (terrain != null && !terrain.equals(field.terrain)) {
+                if (terrainSet == null) terrainBefore = field.terrain;
+                field.terrain = terrain;
+                terrainSet = terrain;
+            }
+        }
     }
 
     /** Ce que le combat vient de révéler (objet, talent, attaques, Téra) corrige le set de l'adversaire. */
