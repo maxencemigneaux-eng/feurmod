@@ -203,7 +203,8 @@ public final class FeurinfoScreen extends Screen {
         super.removed();
         // On quitte FeurWiki (pas pour l'écran Types / Réglages ouvert depuis la fiche) : on coupe le son
         net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
-        if (!(mc.screen instanceof TypeBrowserScreen) && !(mc.screen instanceof com.goat.feurmod.ui.SettingsScreen)) {
+        if (!(mc.screen instanceof TypeBrowserScreen) && !(mc.screen instanceof MoveSearchScreen)
+                && !(mc.screen instanceof com.goat.feurmod.ui.SettingsScreen)) {
             stopSpecialSound();
         }
     }
@@ -444,7 +445,13 @@ public final class FeurinfoScreen extends Screen {
         searchX = gearX - 6 - searchW;
         Component typesLabel = Component.literal("Types");
         int typesW = font.width(typesLabel) + 12;
-        typesButtonX = searchX - 6 - typesW;
+        Component byMoveLabel = Component.literal("Par attaque");
+        int byMoveW = font.width(byMoveLabel) + 12;
+        int byMoveX = searchX - 6 - byMoveW;
+        FlatButton byMove = addRenderableWidget(new FlatButton(byMoveX, SEARCH_Y, byMoveW, 16, byMoveLabel,
+                () -> minecraft.setScreen(new MoveSearchScreen(this, null))));
+        byMove.setTooltip(Tooltip.create(Component.literal("Qui apprend une attaque ? (ex. Distorsion)")));
+        typesButtonX = byMoveX - 6 - typesW;
         FlatButton typesBtn = addRenderableWidget(new FlatButton(typesButtonX, SEARCH_Y, typesW, 16, typesLabel,
                 () -> minecraft.setScreen(new TypeBrowserScreen(this, null))));
         typesBtn.setTooltip(Tooltip.create(Component.literal("Voir tous les Pokémon d'un type (ou de deux types)")));
@@ -1278,6 +1285,7 @@ public final class FeurinfoScreen extends Screen {
                         .withStyle(style -> style.withColor(color)).getVisualOrderText());
             }
             lines.addAll(font.split(move.getDescription().copy().withStyle(ChatFormatting.GRAY), 220));
+            lines.add(Component.literal("Clic sur le nom : qui apprend cette attaque ?").withStyle(ChatFormatting.DARK_AQUA).getVisualOrderText());
             if (move.getPriority() != 0) {
                 String priority = (move.getPriority() > 0 ? "+" : "") + move.getPriority();
                 lines.add(Component.translatable("feurinfo.tooltip.priority", priority).withStyle(ChatFormatting.DARK_AQUA).getVisualOrderText());
@@ -1390,6 +1398,11 @@ public final class FeurinfoScreen extends Screen {
         List<Row> list = displayedRows();
         if (index < 0 || index >= list.size()) return false;
         MoveTemplate move = list.get(index).move();
+        if (mx >= hdrNameX && mx < hdrTypeX - 2) {
+            // Clic sur le nom : tous les Pokémon qui apprennent cette attaque
+            minecraft.setScreen(new MoveSearchScreen(this, move));
+            return true;
+        }
         if (mx >= hdrTypeX && mx < hdrTypeX + TYPE_COL_W) {
             String id = move.getElementalType().getName().toLowerCase();
             if (!typeFilter.remove(id)) {
