@@ -16,7 +16,7 @@ public final class Theme {
     public static final int HEADER = 0xFF1A212A;
     public static final int CARD = 0xFF1D242E;
     public static final int CARD_ALT = 0xFF181E26;
-    public static final int CARD_HOVER = 0xFF283240;
+    public static int CARD_HOVER = 0xFF283240; // teinté par la couleur d'accent (FeurmodConfig.apply)
     public static final int CARD_DISABLED = 0xFF161B21;
     public static final int FIELD = 0xFF0E1217;
     public static final int FIELD_BORDER = 0xFF2E3946;
@@ -119,6 +119,20 @@ public final class Theme {
         box.setBordered(false);
         box.setTextColor(TEXT);
         return box;
+    }
+
+    /** Bandeau derrière la ligne d'en-têtes d'un tableau (N°, Pokémon, PV...), même rendu partout. */
+    public static void headerBand(GuiGraphics g, int x, int y, int w) {
+        rect(g, x, y - 3, w, 13, 2, HEADER);
+        g.fill(x, y + 10, x + w, y + 11, withAlpha(ACCENT, 0x90));
+    }
+
+    /** En-tête commun des écrans : marque en gras (couleur d'accent) puis le titre, alignés à gauche. */
+    public static void screenTitle(GuiGraphics g, Font font, String brand, String title, int x, int y) {
+        Component b = Component.literal(brand).withStyle(net.minecraft.ChatFormatting.BOLD);
+        g.drawString(font, b, x, y, ACCENT, false);
+        // +1 px par lettre : le gras élargit chaque caractère
+        g.drawString(font, title, x + font.width(b) + brand.length() + 8, y, TEXT, false);
     }
 
     /** Ligne de séparation horizontale. */

@@ -1194,19 +1194,23 @@ public final class FeurinfoScreen extends Screen {
         hdrPpRight = ppRight;
         hdrPrioRight = prioRight;
         hdrShowLevel = showLevel;
+        Theme.headerBand(graphics, x0 - 2, headerY, x1 - x0 + 4);
         if (showLevel) {
             header(graphics, Component.translatable("feurinfo.col.method"), SortCol.LEVEL, x0 + 2, headerY, false, mouseX, mouseY);
         }
         header(graphics, Component.translatable("feurinfo.col.name"), SortCol.NAME, nameX, headerY, false, mouseX, mouseY);
-        header(graphics, Component.translatable("feurinfo.col.type"), SortCol.TYPE, typeX, headerY, false, mouseX, mouseY);
+        // Centrés sur leur colonne : sinon « Type » touche « Catégorie »
+        header(graphics, Component.translatable("feurinfo.col.type"), SortCol.TYPE,
+                typeX + TYPE_COL_W / 2 + font.width(Component.translatable("feurinfo.col.type")) / 2, headerY, true, mouseX, mouseY);
         if (showCategory) {
-            header(graphics, Component.translatable("feurinfo.col.category"), SortCol.CAT, catX, headerY, false, mouseX, mouseY);
+            header(graphics, Component.translatable("feurinfo.col.category"), SortCol.CAT,
+                    catX + 25 + font.width(Component.translatable("feurinfo.col.category")) / 2, headerY, true, mouseX, mouseY);
         }
         header(graphics, Component.translatable("feurinfo.col.power"), SortCol.POW, powRight, headerY, true, mouseX, mouseY);
         header(graphics, Component.translatable("feurinfo.col.accuracy"), SortCol.ACC, accRight, headerY, true, mouseX, mouseY);
         header(graphics, Component.translatable("feurinfo.col.pp"), SortCol.PP, ppRight, headerY, true, mouseX, mouseY);
         header(graphics, Component.literal("Prio"), SortCol.PRIO, prioRight, headerY, true, mouseX, mouseY);
-        Theme.divider(graphics, x0 - 2, listTop - 3, x1 - x0 + 4);
+
 
         if (list.isEmpty()) {
             Component empty = searching
@@ -1257,7 +1261,12 @@ public final class FeurinfoScreen extends Screen {
             int y = listTop + i * ROW_H;
             int textY = y + (ROW_H - 1 - 8) / 2;
             if (showLevel) {
-                graphics.drawString(font, Theme.ellipsize(font, row.level(), methodW - 6), x0 + 2, textY, Theme.GOLD, false);
+                // Le niveau en doré, les autres méthodes (CT, Tuteur...) plus discrètes
+                String method = Theme.ellipsize(font, row.level(), methodW - 6);
+                int comma = row.sortLevel() != Integer.MAX_VALUE ? method.indexOf(", ") : 0;
+                String lead = comma > 0 ? method.substring(0, comma) : row.sortLevel() != Integer.MAX_VALUE ? method : "";
+                graphics.drawString(font, lead, x0 + 2, textY, Theme.GOLD, false);
+                graphics.drawString(font, method.substring(lead.length()), x0 + 2 + font.width(lead), textY, Theme.TEXT_2, false);
             }
             String name = Theme.ellipsize(font, move.getDisplayName().getString(), typeX - nameX - 4);
             graphics.drawString(font, name, nameX, textY, Theme.TEXT, false);

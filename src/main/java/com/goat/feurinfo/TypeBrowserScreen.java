@@ -143,9 +143,8 @@ public final class TypeBrowserScreen extends Screen {
     @Override
     public void render(GuiGraphics g, int mx, int my, float delta) {
         super.render(g, mx, my, delta);
-        g.drawString(font, Component.literal("FeurWiki").withStyle(ChatFormatting.BOLD), MARGIN, 11, Theme.ACCENT, false);
         String sub = selected.isEmpty() ? "Pokémon par type — choisis un ou deux types" : "Pokémon de type " + typeNames();
-        g.drawString(font, sub, MARGIN + font.width(Component.literal("FeurWiki").withStyle(ChatFormatting.BOLD)) + 14, 11, Theme.TEXT, false);
+        Theme.screenTitle(g, font, "FeurWiki", sub, MARGIN, 11);
 
         Theme.panel(g, panelX, panelY, panelW, panelH, 4, Theme.PANEL, Theme.PANEL_BORDER);
         g.flush();
@@ -187,13 +186,13 @@ public final class TypeBrowserScreen extends Screen {
         statsX = x1 - statW * 7;
         typesX = statsX - 44;
         nameX = x0 + font.width("#0000") + 8;
+        Theme.headerBand(g, x0 - 2, headerY, x1 - x0 + 4);
         header(g, "N°", -1, x0, false, mx, my);
         header(g, "Pokémon", 0, nameX, false, mx, my);
         g.drawString(font, "Types", typesX, headerY, Theme.LABEL, false);
         for (int i = 0; i < 7; i++) {
             header(g, STAT_LABELS[i], i + 1, statsX + (i + 1) * statW - 4, true, mx, my);
         }
-        Theme.divider(g, x0 - 2, listTop - 3, x1 - x0 + 4);
 
         // Lignes
         int visible = Math.max(1, (listBottom - listTop) / ROW);

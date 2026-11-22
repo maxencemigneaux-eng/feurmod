@@ -59,6 +59,7 @@ public final class FeurmodConfig {
         c.accent = Math.floorMod(c.accent, ACCENT_COLORS.length);
         c.panelOpacity = Math.max(40, Math.min(100, c.panelOpacity));
         Theme.ACCENT = ACCENT_COLORS[c.accent];
+        Theme.CARD_HOVER = Theme.mix(0xFF1D242E, Theme.ACCENT, 0.22F);
         int alpha = Math.round(255 * c.panelOpacity / 100f);
         Theme.PANEL = (alpha << 24) | 0x141920;
     }

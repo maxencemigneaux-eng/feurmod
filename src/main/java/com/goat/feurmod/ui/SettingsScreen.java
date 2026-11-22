@@ -165,6 +165,11 @@ public final class SettingsScreen extends Screen {
 
     // =======================================================================================
 
+    @Override
+    protected void init() {
+        addRenderableWidget(new FlatButton(panelX() + panelW() - 16, 7, 16, 16, Component.literal("✕"), this::onClose));
+    }
+
     private int panelW() {
         return Math.min(360, width - 20);
     }
@@ -186,8 +191,8 @@ public final class SettingsScreen extends Screen {
         super.render(g, mx, my, delta);
         int x = panelX();
         int w = panelW();
-        g.drawCenteredString(font, Component.literal("Réglages Feurmod").withColor(Theme.TEXT), width / 2, 12, Theme.TEXT);
-        g.drawCenteredString(font, "Clic : suivant · Clic droit : précédent", width / 2, 22, Theme.MUTED);
+        Theme.screenTitle(g, font, "Feurmod", "Réglages", panelX(), 11);
+        g.drawString(font, "Clic : suivant · Clic droit : précédent", panelX(), 22, Theme.MUTED, false);
 
         Theme.panel(g, x, top(), w, bottom() - top(), 4, Theme.PANEL, Theme.PANEL_BORDER);
         g.flush();
