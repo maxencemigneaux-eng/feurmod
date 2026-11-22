@@ -38,7 +38,7 @@ public final class TypeBrowserScreen extends Screen {
 
     @Nullable private final Screen parent;
     private final Set<String> selected = new LinkedHashSet<>();
-    private boolean onlyImplemented = true;
+    private boolean onlyImplemented = false; // tous les Pokémon sont dans le jeu sur le serveur
     private List<Entry> all;
     private final List<Entry> shown = new ArrayList<>();
     private int sortCol = -1; // -1 = n° Pokédex, 0 = nom, 1..7 = stats
@@ -77,15 +77,6 @@ public final class TypeBrowserScreen extends Screen {
         Component back = Component.literal("Retour");
         int bw = font.width(back) + 12;
         addRenderableWidget(new FlatButton(width - MARGIN - 16 - 4 - bw, 7, bw, 16, back, this::onClose));
-        Component implLabel = Component.literal("Seulement ceux du jeu");
-        int iw = font.width(implLabel) + 12;
-        FlatButton impl = addRenderableWidget(new FlatButton(width - MARGIN - 16 - 4 - bw - 6 - iw, 7, iw, 16, implLabel, () -> {
-            onlyImplemented = !onlyImplemented;
-            refilter();
-            rebuildWidgets();
-        }));
-        impl.selected = onlyImplemented;
-        impl.setTooltip(Tooltip.create(Component.literal("Cacher les Pokémon qui n'ont pas encore de modèle dans Cobblemon")));
         refilter();
     }
 
@@ -154,7 +145,7 @@ public final class TypeBrowserScreen extends Screen {
         super.render(g, mx, my, delta);
         g.drawString(font, Component.literal("FeurWiki").withStyle(ChatFormatting.BOLD), MARGIN, 11, Theme.ACCENT, false);
         String sub = selected.isEmpty() ? "Pokémon par type — choisis un ou deux types" : "Pokémon de type " + typeNames();
-        g.drawString(font, sub, MARGIN + font.width(Component.literal("FeurWiki").withStyle(ChatFormatting.BOLD)) + 8, 11, Theme.TEXT, false);
+        g.drawString(font, sub, MARGIN + font.width(Component.literal("FeurWiki").withStyle(ChatFormatting.BOLD)) + 14, 11, Theme.TEXT, false);
 
         Theme.panel(g, panelX, panelY, panelW, panelH, 4, Theme.PANEL, Theme.PANEL_BORDER);
         g.flush();
@@ -223,7 +214,7 @@ public final class TypeBrowserScreen extends Screen {
             int ty = y + (ROW - 1 - 8) / 2;
             boolean dim = !e.species().getImplemented();
             g.drawString(font, String.format("#%04d", e.species().getNationalPokedexNumber()), x0, ty, Theme.MUTED, false);
-            g.drawString(font, Theme.ellipsize(font, e.name(), typesX - nameX - 6), nameX, ty, dim ? Theme.MUTED : Theme.TEXT, false);
+            g.drawString(font, Theme.ellipsize(font, e.name(), typesX - nameX - 6), nameX, ty, Theme.TEXT, false);
             int ix = typesX;
             for (ElementalType t : e.types()) {
                 FeurinfoScreen.drawTypeIcon(g, t, ix, y + 1, 13);

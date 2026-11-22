@@ -48,7 +48,9 @@ public final class MoveSearchScreen extends Screen {
     private String query = "";
     private final List<MoveTemplate> suggestions = new ArrayList<>();
     private int suggestionSel;
-    private boolean onlyImplemented = true;
+    private boolean onlyImplemented = false; // tous les Pokémon sont dans le jeu sur le serveur
+    private final TypeFilterRow typeRow = new TypeFilterRow();
+    @Nullable private String hoveredType;
     private final List<Entry> shown = new ArrayList<>();
     private List<Entry> all = new ArrayList<>();
     private int sortCol = -2; // -2 = méthode, -1 = n°, 0 = nom, 1..7 = stats
@@ -85,15 +87,6 @@ public final class MoveSearchScreen extends Screen {
         Component back = Component.literal("Retour");
         int bw = font.width(back) + 12;
         addRenderableWidget(new FlatButton(width - MARGIN - 16 - 4 - bw, 7, bw, 16, back, this::onClose));
-        Component implLabel = Component.literal("Seulement ceux du jeu");
-        int iw = font.width(implLabel) + 12;
-        FlatButton impl = addRenderableWidget(new FlatButton(width - MARGIN - 16 - 4 - bw - 6 - iw, 7, iw, 16, implLabel, () -> {
-            onlyImplemented = !onlyImplemented;
-            refilter();
-            rebuildWidgets();
-        }));
-        impl.selected = onlyImplemented;
-        impl.setTooltip(Tooltip.create(Component.literal("Cacher les Pokémon qui n'ont pas encore de modèle dans Cobblemon")));
 
         box = Theme.fieldBox(font, boxX, boxY, boxW, 16, Component.literal("Attaque"));
         box.setHint(Component.literal("Chercher une attaque… (ex. Distorsion)").withStyle(s -> s.withColor(Theme.MUTED)));
@@ -213,6 +206,7 @@ public final class MoveSearchScreen extends Screen {
         shown.clear();
         for (Entry e : all) {
             if (onlyImplemented && !e.species().getImplemented()) continue;
+            if (!typeRow.matches(e.types())) continue;
             shown.add(e);
         }
         Comparator<Entry> cmp = switch (sortCol) {
@@ -232,7 +226,7 @@ public final class MoveSearchScreen extends Screen {
         super.render(g, mx, my, delta);
         Component brand = Component.literal("FeurWiki").withStyle(ChatFormatting.BOLD);
         g.drawString(font, brand, MARGIN, 11, Theme.ACCENT, false);
-        g.drawString(font, "Qui apprend une attaque ?", MARGIN + font.width(brand) + 8, 11, Theme.TEXT, false);
+        g.drawString(font, "Qui apprend une attaque ?", MARGIN + font.width(brand) + 14, 11, Theme.TEXT, false);
 
         Theme.panel(g, panelX, panelY, panelW, panelH, 4, Theme.PANEL, Theme.PANEL_BORDER);
         g.flush();
@@ -246,16 +240,10 @@ public final class MoveSearchScreen extends Screen {
             ElementalType t = move.getElementalType();
             FeurinfoScreen.drawTypeIcon(g, t, cx, boxY + 1, 14);
             g.drawString(font, move.getDisplayName().copy().withStyle(ChatFormatting.BOLD), cx + 18, boxY + 4, Theme.TEXT, false);
-            String info = move.getDamageCategory().getDisplayName().getString()
-                    + " · Puiss. " + (move.getPower() > 0 ? (int) move.getPower() : "—")
-                    + " · Préc. " + (move.getAccuracy() > 0 ? (int) move.getAccuracy() + "%" : "—")
-                    + " · PP " + move.getPp()
-                    + (move.getPriority() != 0 ? " · Prio " + (move.getPriority() > 0 ? "+" : "") + move.getPriority() : "");
-            g.drawString(font, Theme.ellipsize(font, info, x1 - cx - 90), cx + 18, boxY + 16, Theme.TEXT_2, false);
             String count = shown.size() + " Pokémon";
             g.drawString(font, count, x1 - font.width(count), boxY + 4, Theme.GOLD, false);
-            List<net.minecraft.util.FormattedCharSequence> desc = font.split(move.getDescription(), x1 - x0);
-            if (!desc.isEmpty()) g.drawString(font, desc.get(0), x0, boxY + 26, Theme.MUTED, false);
+            // Filtre par type des Pokémon
+            hoveredType = typeRow.draw(g, x0, x1, boxY + 24, mx, my);
         } else {
             g.drawString(font, "Tape une attaque, puis choisis-la dans la liste.", boxX + boxW + 12, boxY + 4, Theme.MUTED, false);
         }
@@ -290,7 +278,7 @@ public final class MoveSearchScreen extends Screen {
                 int ty = y + (ROW - 1 - 8) / 2;
                 g.drawString(font, String.format("#%04d", e.species().getNationalPokedexNumber()), x0, ty, Theme.MUTED, false);
                 g.drawString(font, Theme.ellipsize(font, e.name(), typesX - nameX - 6), nameX, ty,
-                        e.species().getImplemented() ? Theme.TEXT : Theme.MUTED, false);
+                        Theme.TEXT, false);
                 int ix = typesX;
                 for (ElementalType t : e.types()) {
                     FeurinfoScreen.drawTypeIcon(g, t, ix, y + 1, 13);
@@ -317,8 +305,11 @@ public final class MoveSearchScreen extends Screen {
             }
         }
 
+        if (move == null) hoveredType = null;
         drawDropdown(g, mx, my);
-        if (hovered != null) {
+        if (hoveredType != null && !dropOpen()) {
+            TypeFilterRow.tooltip(g, font, hoveredType, mx, my);
+        } else if (hovered != null) {
             g.renderTooltip(font, Component.literal("Clic : ouvrir sa fiche").withStyle(ChatFormatting.DARK_AQUA), mx, my);
         }
     }
@@ -365,6 +356,10 @@ public final class MoveSearchScreen extends Screen {
                 if (i >= 0 && i < suggestions.size()) setMove(suggestions.get(i));
                 return true;
             }
+        }
+        if (move != null && !dropOpen() && typeRow.click(mx, my, button)) {
+            refilter();
+            return true;
         }
         if (move != null && my >= headerY - 2 && my < headerY + 10) {
             int col = Integer.MIN_VALUE;
