@@ -9,7 +9,6 @@ import com.goat.feurmod.ui.FlatButton;
 import com.goat.feurmod.ui.Theme;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.Mth;
@@ -38,7 +37,6 @@ public final class TypeBrowserScreen extends Screen {
 
     @Nullable private final Screen parent;
     private final Set<String> selected = new LinkedHashSet<>();
-    private boolean onlyImplemented = false; // tous les Pokémon sont dans le jeu sur le serveur
     private List<Entry> all;
     private final List<Entry> shown = new ArrayList<>();
     private int sortCol = -1; // -1 = n° Pokédex, 0 = nom, 1..7 = stats
@@ -115,9 +113,6 @@ public final class TypeBrowserScreen extends Screen {
     private void refilter() {
         shown.clear();
         for (Entry e : all) {
-            if (onlyImplemented && !e.species().getImplemented()) {
-                continue;
-            }
             boolean ok = true;
             for (String t : selected) {
                 boolean has = false;

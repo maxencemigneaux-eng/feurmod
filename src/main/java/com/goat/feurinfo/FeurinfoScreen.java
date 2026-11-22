@@ -32,11 +32,9 @@ import org.jetbrains.annotations.Nullable;
 import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Comparator;
 import java.util.EnumMap;
 import java.util.HashSet;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -61,7 +59,7 @@ public final class FeurinfoScreen extends Screen {
     private static final int TYPE_COL_W = 24;
 
     private enum Tab {
-        MOVES("moves"), WEAK("weak"), EVOS("evos"), SET("set"), SPAWN("spawn");
+        MOVES("moves"), EVOS("evos"), SET("set"), SPAWN("spawn");
 
         /** Onglet qui affiche la liste d'attaques. */
         boolean moves() {
@@ -622,16 +620,6 @@ public final class FeurinfoScreen extends Screen {
         addRenderableWidget(model);
     }
 
-    private Component shinyLabel() {
-        return shiny
-                ? Component.literal("★").withStyle(s -> s.withColor(Theme.GOLD))
-                : Component.literal("☆").withStyle(s -> s.withColor(Theme.TEXT_2));
-    }
-
-    private Tooltip shinyTooltip() {
-        return Tooltip.create(Component.translatable(shiny ? "feurinfo.shiny.on" : "feurinfo.shiny.off"));
-    }
-
     // =======================================================================================
     // Actions
     // =======================================================================================
@@ -994,8 +982,6 @@ public final class FeurinfoScreen extends Screen {
             drawEvos(graphics, mouseX, mouseY);
         } else if (showingSet()) {
             drawSet(graphics, mouseX, mouseY);
-        } else if (showingWeak()) {
-            drawWeak(graphics, mouseX, mouseY);
         } else {
             drawMoves(graphics, mouseX, mouseY);
         }
@@ -1032,10 +1018,6 @@ public final class FeurinfoScreen extends Screen {
     /** Pastille de type : icône + nom, sur la couleur du type. Renvoie sa largeur. */
     private int typePill(GuiGraphics g, ElementalType type, int x, int y, int h) {
         return typePill(g, type, x, y, h, type.getDisplayName().getString());
-    }
-
-    private int typePillWidth(String name, int h) {
-        return 2 + (h - 4) + 3 + font.width(name) + 6;
     }
 
     private int typePill(GuiGraphics g, ElementalType type, int x, int y, int h, String name) {
@@ -1354,16 +1336,6 @@ public final class FeurinfoScreen extends Screen {
         List<Row> sorted = new ArrayList<>(base);
         sorted.sort(sortDesc ? cmp.reversed() : cmp);
         return sorted;
-    }
-
-    private static int levelNumber(String level) {
-        String digits = level.replaceAll("[^0-9]", "");
-        if (digits.isEmpty()) return 0;
-        try {
-            return Integer.parseInt(digits.length() > 4 ? digits.substring(0, 4) : digits);
-        } catch (NumberFormatException e) {
-            return 0;
-        }
     }
 
     /** En-tête de colonne cliquable, avec ▲ / ▼ sur la colonne triée. */
@@ -1687,108 +1659,6 @@ public final class FeurinfoScreen extends Screen {
         if (tip != null) {
             g.renderTooltip(font, tip, mouseX, mouseY);
         }
-    }
-
-    private boolean showingWeak() {
-        return tab == Tab.WEAK && !filtering();
-    }
-
-    private static final double[] WEAK_GROUPS = {4, 2, 1, 0.5, 0.25, 0};
-    private static final String[] WEAK_KEYS = {"x4", "x2", "x1", "half", "quarter", "immune"};
-    private static final int[] WEAK_COLORS = {0xFFFF5F5F, 0xFFFF9A5A, 0xFFA9B5C1, 0xFF7FE08A, 0xFF4FD07A, 0xFF8AB4FF};
-
-    private void drawWeak(GuiGraphics graphics, int mouseX, int mouseY) {
-        int x0 = rightX + 8;
-        int x1 = rightX + rightW - 8;
-        int top = filterY;
-        int pillH = 14;
-        int line = pillH + 3;
-
-        List<String> defense = new ArrayList<>();
-        for (ElementalType type : form().getTypes()) {
-            defense.add(type.getName());
-        }
-        Map<String, Double> base = TypeChart.defensive(defense);
-
-        graphics.enableScissor(rightX + 1, top - 2, rightX + rightW - 1, listBottom);
-        graphics.drawString(font, Component.translatable("feurinfo.weak.title"), x0, top, Theme.LABEL, false);
-        int y = top + 14;
-
-        // Largeur de la colonne des libellés ("×2  Faible")
-        int labelW = 0;
-        for (int i = 0; i < WEAK_GROUPS.length; i++) {
-            labelW = Math.max(labelW, font.width(TypeChart.label(WEAK_GROUPS[i]) + "  " + I18n.get("feurinfo.weak." + WEAK_KEYS[i])));
-        }
-        labelW += 10;
-
-        for (int i = 0; i < WEAK_GROUPS.length; i++) {
-            List<ElementalType> types = new ArrayList<>();
-            for (Map.Entry<String, Double> e : base.entrySet()) {
-                if (Math.abs(e.getValue() - WEAK_GROUPS[i]) < 1e-6) {
-                    ElementalType type = elementalType(e.getKey());
-                    if (type != null) {
-                        types.add(type);
-                    }
-                }
-            }
-            if (types.isEmpty()) {
-                continue;
-            }
-            Theme.rect(graphics, x0 - 3, y - 1, 2, pillH + 2, 1, WEAK_COLORS[i]);
-            graphics.flush();
-            graphics.drawString(font, TypeChart.label(WEAK_GROUPS[i]), x0 + 2, y + 3, WEAK_COLORS[i], false);
-            graphics.drawString(font, I18n.get("feurinfo.weak." + WEAK_KEYS[i]),
-                    x0 + 2 + font.width(TypeChart.label(WEAK_GROUPS[i]) + "  "), y + 3, Theme.TEXT_2, false);
-            int px = x0 + labelW;
-            for (ElementalType type : types) {
-                int pw = typePillWidth(type.getDisplayName().getString(), pillH);
-                if (px + pw > x1 && px > x0 + labelW) {
-                    px = x0 + labelW;
-                    y += line;
-                }
-                px += typePill(graphics, type, px, y, pillH) + 4;
-            }
-            y += line + 4;
-        }
-
-        // Ce que ses talents y changent
-        Theme.divider(graphics, x0 - 3, y, x1 - x0 + 6);
-        y += 6;
-        graphics.drawString(font, Component.translatable("feurinfo.weak.abilities"), x0, y, Theme.LABEL, false);
-        y += 13;
-        boolean any = false;
-        for (AbilityLine ability : abilities) {
-            Map<String, Double> changed = TypeChart.withAbility(base, ability.template().getName());
-            if (changed == null) {
-                continue;
-            }
-            any = true;
-            String name = abilityName(ability.template()) + " :";
-            graphics.drawString(font, name, x0, y + 3, ability.hidden() ? Theme.PURPLE : Theme.TEXT, false);
-            int px = x0 + Math.max(labelW, font.width(name) + 8);
-            for (Map.Entry<String, Double> e : changed.entrySet()) {
-                double before = base.get(e.getKey());
-                if (Math.abs(e.getValue() - before) < 1e-6) {
-                    continue;
-                }
-                ElementalType type = elementalType(e.getKey());
-                if (type == null) {
-                    continue;
-                }
-                String text = type.getDisplayName().getString() + " " + TypeChart.label(before) + " → " + TypeChart.label(e.getValue());
-                int pw = typePillWidth(text, pillH);
-                if (px + pw > x1 && px > x0 + labelW) {
-                    px = x0 + labelW;
-                    y += line;
-                }
-                px += typePill(graphics, type, px, y, pillH, text) + 4;
-            }
-            y += line + 2;
-        }
-        if (!any) {
-            graphics.drawString(font, Component.translatable("feurinfo.weak.no_ability"), x0, y + 2, Theme.MUTED, false);
-        }
-        graphics.disableScissor();
     }
 
     @Nullable

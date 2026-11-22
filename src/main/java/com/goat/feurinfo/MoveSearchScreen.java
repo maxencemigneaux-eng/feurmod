@@ -13,7 +13,6 @@ import com.goat.feurmod.ui.Theme;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.EditBox;
-import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.resources.language.I18n;
 import net.minecraft.network.chat.Component;
@@ -48,7 +47,6 @@ public final class MoveSearchScreen extends Screen {
     private String query = "";
     private final List<MoveTemplate> suggestions = new ArrayList<>();
     private int suggestionSel;
-    private boolean onlyImplemented = false; // tous les Pokémon sont dans le jeu sur le serveur
     private final TypeFilterRow typeRow = new TypeFilterRow();
     @Nullable private String hoveredType;
     private final List<Entry> shown = new ArrayList<>();
@@ -205,7 +203,6 @@ public final class MoveSearchScreen extends Screen {
     private void refilter() {
         shown.clear();
         for (Entry e : all) {
-            if (onlyImplemented && !e.species().getImplemented()) continue;
             if (!typeRow.matches(e.types())) continue;
             shown.add(e);
         }
