@@ -7,14 +7,5 @@
         "stream": false
       }
     ]
-  },
-  "alert.damn_n": {
-    "category": "master",
-    "sounds": [
-      {
-        "name": "feurleg:damn_n",
-        "stream": false
-      }
-    ]
   }
 }

@@ -121,8 +121,8 @@ public final class SettingsScreen extends Screen {
         return new Option(label, () -> get.get() ? "Oui" : "Non", flip, flip, tip, get);
     }
 
-    private static final String[] SOUND_LABELS = {"Aucun", "Cloche", "Damn les gens", "Damn N"};
-    private static final String[] SOUND_IDS = {"", "cloche", "damn", "damn_n"};
+    private static final String[] SOUND_LABELS = {"Aucun", "Cloche", "Damn les gens"};
+    private static final String[] SOUND_IDS = {"", "cloche", "damn"};
 
     private static int soundIndex(FeurlegConfig leg) {
         if (!leg.alertSound) return 0;
@@ -132,7 +132,7 @@ public final class SettingsScreen extends Screen {
         return 1;
     }
 
-    /** Aucun → Cloche → Damn les gens → Damn N, et on fait écouter le son choisi. */
+    /** Aucun → Cloche → Damn les gens, et on fait écouter le son choisi. */
     private static void cycleSound(FeurlegConfig leg, int dir) {
         int next = Math.floorMod(soundIndex(leg) + dir, SOUND_IDS.length);
         leg.alertSound = next != 0;

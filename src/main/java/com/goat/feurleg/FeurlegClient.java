@@ -103,8 +103,6 @@ public final class FeurlegClient implements ClientModInitializer {
 
     private static final net.minecraft.sounds.SoundEvent DAMN_LES_GENS = net.minecraft.sounds.SoundEvent.createVariableRangeEvent(
             net.minecraft.resources.ResourceLocation.fromNamespaceAndPath("feurleg", "alert.damn_les_gens"));
-    private static final net.minecraft.sounds.SoundEvent DAMN_N = net.minecraft.sounds.SoundEvent.createVariableRangeEvent(
-            net.minecraft.resources.ResourceLocation.fromNamespaceAndPath("feurleg", "alert.damn_n"));
 
     /**
      * Le son choisi dans les réglages, au volume réglé (0 à 300 %). Minecraft bloque chaque son à 100 % :
@@ -116,8 +114,6 @@ public final class FeurlegClient implements ClientModInitializer {
         float p = 1.0f;
         if ("damn".equals(cfg.alertSoundChoice)) {
             sound = DAMN_LES_GENS;
-        } else if ("damn_n".equals(cfg.alertSoundChoice)) {
-            sound = DAMN_N;
         } else {
             sound = SoundEvents.NOTE_BLOCK_BELL.value();
             p = pitch;
