@@ -85,6 +85,14 @@ public final class FeurlegConfig {
         save();
     }
 
+    /** Remet les réglages par défaut (les timers et les heures apprises sont gardés). */
+    public static void reset() {
+        instance = new FeurlegConfig();
+        instance.periodsVersion = PERIODS_VERSION;
+        ZonePeriods.loadTable(instance.periods);
+        save();
+    }
+
     public static void save() {
         try {
             Files.createDirectories(FILE.getParent());

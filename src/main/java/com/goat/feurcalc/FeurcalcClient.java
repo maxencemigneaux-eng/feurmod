@@ -73,6 +73,7 @@ public final class FeurcalcClient implements ClientModInitializer {
             TeamMatchups.tick(tickCounter);
             if (++tickCounter % 200 == 0) {
                 SavedSets.saveIfNeeded();
+                CalcState.saveSeenIfNeeded();
             }
         });
 

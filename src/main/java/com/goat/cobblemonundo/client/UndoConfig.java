@@ -33,6 +33,12 @@ public final class UndoConfig {
         return instance;
     }
 
+    /** Remet les réglages par défaut (bouton « Réinitialiser » du menu Réglages). */
+    public static void reset() {
+        instance = new UndoConfig();
+        save();
+    }
+
     /** Enregistre les réglages (appelé par le menu Réglages de Feurmod). */
     public static void save() {
         Path file = FabricLoader.getInstance().getConfigDir().resolve(CobblemonUndo.MOD_ID + ".json");

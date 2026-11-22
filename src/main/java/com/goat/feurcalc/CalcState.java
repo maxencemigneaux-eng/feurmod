@@ -326,10 +326,95 @@ public final class CalcState {
         if (m.isEmpty()) {
             return;
         }
+        seenOpponents(); // charge d'abord ceux des parties précédentes
         SEEN_OPPONENTS.remove(uuid);
         SEEN_OPPONENTS.put(uuid, m.copy());
         while (SEEN_OPPONENTS.size() > MAX_SEEN) {
             SEEN_OPPONENTS.remove(SEEN_OPPONENTS.keySet().iterator().next());
+        }
+        seenDirty = true;
+    }
+
+    // ----- Sauvegarde des adversaires déjà vus (config/feurcalc_seen.json) -----
+
+    private static final java.nio.file.Path SEEN_FILE =
+            net.fabricmc.loader.api.FabricLoader.getInstance().getConfigDir().resolve("feurcalc_seen.json");
+    private static boolean seenLoaded;
+    private static boolean seenDirty;
+
+    /** La liste, chargée depuis le fichier au premier accès (une fois les espèces de Cobblemon connues). */
+    public static java.util.LinkedHashMap<UUID, MonState> seenOpponents() {
+        if (!seenLoaded && !com.cobblemon.mod.common.api.pokemon.PokemonSpecies.getSpecies().isEmpty()) {
+            seenLoaded = true;
+            loadSeen();
+        }
+        return SEEN_OPPONENTS;
+    }
+
+    private static void loadSeen() {
+        if (!java.nio.file.Files.exists(SEEN_FILE)) {
+            return;
+        }
+        java.util.LinkedHashMap<UUID, MonState> loaded = new java.util.LinkedHashMap<>();
+        try {
+            JsonObject root = com.google.gson.JsonParser.parseString(
+                    java.nio.file.Files.readString(SEEN_FILE, java.nio.charset.StandardCharsets.UTF_8)).getAsJsonObject();
+            for (java.util.Map.Entry<String, JsonElement> e : root.entrySet()) {
+                try {
+                    JsonObject o = e.getValue().getAsJsonObject();
+                    com.cobblemon.mod.common.pokemon.Species species = com.cobblemon.mod.common.api.pokemon.PokemonSpecies
+                            .getByIdentifier(net.minecraft.resources.ResourceLocation.parse(o.get("species").getAsString()));
+                    if (species == null) {
+                        continue; // espèce absente de ce serveur
+                    }
+                    com.cobblemon.mod.common.pokemon.FormData form = species.getStandardForm();
+                    String formName = o.has("form") ? o.get("form").getAsString() : "";
+                    for (com.cobblemon.mod.common.pokemon.FormData f : species.getForms()) {
+                        if (f.getName().equals(formName)) form = f;
+                    }
+                    MonState m = MonState.fromForm(species, form, o.get("level").getAsInt());
+                    m.applySpread(o.getAsJsonObject("spread"));
+                    loaded.put(UUID.fromString(e.getKey()), m);
+                } catch (Exception bad) {
+                    // une entrée abîmée ne doit pas faire perdre les autres
+                }
+            }
+        } catch (Exception ex) {
+            return; // fichier illisible : on garde la liste vide, il sera réécrit à la prochaine sauvegarde
+        }
+        loaded.putAll(SEEN_OPPONENTS); // ceux de cette partie restent les plus récents
+        SEEN_OPPONENTS.clear();
+        SEEN_OPPONENTS.putAll(loaded);
+        while (SEEN_OPPONENTS.size() > MAX_SEEN) {
+            SEEN_OPPONENTS.remove(SEEN_OPPONENTS.keySet().iterator().next());
+        }
+    }
+
+    /** Écrit la liste si elle a changé (à la fermeture du calculateur et à la déconnexion). */
+    public static void saveSeenIfNeeded() {
+        if (!seenDirty) {
+            return;
+        }
+        seenDirty = false;
+        JsonObject root = new JsonObject();
+        for (java.util.Map.Entry<UUID, MonState> e : SEEN_OPPONENTS.entrySet()) {
+            MonState m = e.getValue();
+            if (m.species == null || m.form == null) {
+                continue;
+            }
+            JsonObject o = new JsonObject();
+            o.addProperty("species", m.species.getResourceIdentifier().toString());
+            o.addProperty("form", m.form.getName());
+            o.addProperty("level", m.level);
+            o.add("spread", m.spreadToJson());
+            root.add(e.getKey().toString(), o);
+        }
+        try {
+            java.nio.file.Files.createDirectories(SEEN_FILE.getParent());
+            java.nio.file.Files.writeString(SEEN_FILE, new com.google.gson.GsonBuilder().setPrettyPrinting().create().toJson(root),
+                    java.nio.charset.StandardCharsets.UTF_8);
+        } catch (Exception ignored) {
+            seenDirty = true; // on réessaiera à la prochaine sauvegarde
         }
     }
 

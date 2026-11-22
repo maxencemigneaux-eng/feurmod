@@ -345,6 +345,7 @@ public final class FeurcalcScreen extends Screen {
     @Override
     public void onClose() {
         SavedSets.saveIfNeeded();
+        CalcState.saveSeenIfNeeded();
         Screen target = parent;
         if (target instanceof BattleGUI && CobblemonClient.INSTANCE.getBattle() == null) {
             target = null;
@@ -357,6 +358,7 @@ public final class FeurcalcScreen extends Screen {
     @Override
     public void removed() {
         SavedSets.saveIfNeeded();
+        CalcState.saveSeenIfNeeded();
         super.removed();
     }
 
@@ -1504,9 +1506,9 @@ public final class FeurcalcScreen extends Screen {
             }
         }
         // Adversaires déjà croisés en combat (le plus récent en premier), avec ce qu'ils ont révélé
-        if (!CalcState.SEEN_OPPONENTS.isEmpty()) {
+        if (!CalcState.seenOpponents().isEmpty()) {
             entries.add(Picker.Entry.header(Names.tr("feurcalc.picker.seen")));
-            List<Map.Entry<UUID, MonState>> seen = new ArrayList<>(CalcState.SEEN_OPPONENTS.entrySet());
+            List<Map.Entry<UUID, MonState>> seen = new ArrayList<>(CalcState.seenOpponents().entrySet());
             java.util.Collections.reverse(seen);
             for (Map.Entry<UUID, MonState> e : seen) {
                 MonState sm = e.getValue();
@@ -1515,7 +1517,7 @@ public final class FeurcalcScreen extends Screen {
                         .withGroup(Names.tr("feurcalc.picker.seen"), null));
             }
         }
-        if (!team.isEmpty() || !CalcState.SEEN_OPPONENTS.isEmpty()) {
+        if (!team.isEmpty() || !CalcState.seenOpponents().isEmpty()) {
             entries.add(Picker.Entry.header(Names.tr("feurcalc.picker.species")));
         }
         for (Species species : all) {
@@ -1547,7 +1549,7 @@ public final class FeurcalcScreen extends Screen {
                 return;
             }
             if (e.id().startsWith("seen:")) {
-                MonState seen = CalcState.SEEN_OPPONENTS.get(UUID.fromString(e.id().substring(5)));
+                MonState seen = CalcState.seenOpponents().get(UUID.fromString(e.id().substring(5)));
                 if (seen != null) {
                     mon(s).copyFrom(seen);
                     state.tick();

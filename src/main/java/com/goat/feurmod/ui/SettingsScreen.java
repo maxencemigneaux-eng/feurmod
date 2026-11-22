@@ -111,6 +111,34 @@ public final class SettingsScreen extends Screen {
                 })),
             toggle("Message au milieu de l'écran", () -> leg.alertMessage, v -> leg.alertMessage = v,
                 "Grand titre avec le nom de la zone", FeurlegConfig::save))));
+        addResetSection();
+    }
+
+    /** Premier clic : demande confirmation ; second clic dans les 4 s : remet tout par défaut. */
+    private long resetArmedUntil;
+
+    private void addResetSection() {
+        sections.add(new Section("Réinitialiser", List.of(new Option("Remettre tous les réglages par défaut",
+            () -> System.currentTimeMillis() < resetArmedUntil ? "Confirmer ?" : "Réinitialiser",
+            this::onReset, this::onReset,
+            "Thème, Annuler / Envoyer et affichage des timers reviennent comme à l'installation. "
+                + "Tes timers, tes sets enregistrés et les adversaires déjà vus sont gardés.",
+            () -> System.currentTimeMillis() < resetArmedUntil))));
+    }
+
+    private void onReset() {
+        if (System.currentTimeMillis() >= resetArmedUntil) {
+            resetArmedUntil = System.currentTimeMillis() + 4000;
+            return;
+        }
+        resetArmedUntil = 0;
+        FeurmodConfig.reset();
+        UndoConfig.reset();
+        FeurlegConfig.reset();
+        // Les options pointent vers les anciens objets de config : on les recrée
+        sections.clear();
+        build();
+        rebuildWidgets();
     }
 
     private static Option toggle(String label, Supplier<Boolean> get, java.util.function.Consumer<Boolean> set, String tip, Runnable save) {

@@ -45,6 +45,13 @@ public final class FeurmodConfig {
         save();
     }
 
+    /** Remet les réglages par défaut (bouton « Réinitialiser » du menu Réglages). */
+    public static void reset() {
+        instance = new FeurmodConfig();
+        apply();
+        save();
+    }
+
     public static void save() {
         try {
             Files.createDirectories(FILE.getParent());
