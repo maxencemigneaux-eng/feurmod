@@ -204,6 +204,7 @@ public final class FeurinfoScreen extends Screen {
         // On quitte FeurWiki (pas pour l'écran Types / Réglages ouvert depuis la fiche) : on coupe le son
         net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
         if (!(mc.screen instanceof TypeBrowserScreen) && !(mc.screen instanceof MoveSearchScreen)
+                && !(mc.screen instanceof AbilitySearchScreen)
                 && !(mc.screen instanceof com.goat.feurmod.ui.SettingsScreen)) {
             stopSpecialSound();
         }
@@ -445,9 +446,15 @@ public final class FeurinfoScreen extends Screen {
         searchX = gearX - 6 - searchW;
         Component typesLabel = Component.literal("Types");
         int typesW = font.width(typesLabel) + 12;
+        Component byAbilityLabel = Component.literal("Par talent");
+        int byAbilityW = font.width(byAbilityLabel) + 12;
+        int byAbilityX = searchX - 6 - byAbilityW;
+        FlatButton byAbility = addRenderableWidget(new FlatButton(byAbilityX, SEARCH_Y, byAbilityW, 16, byAbilityLabel,
+                () -> minecraft.setScreen(new AbilitySearchScreen(this, null))));
+        byAbility.setTooltip(Tooltip.create(Component.literal("Qui a ce talent ? (ex. Intimidation)")));
         Component byMoveLabel = Component.literal("Par attaque");
         int byMoveW = font.width(byMoveLabel) + 12;
-        int byMoveX = searchX - 6 - byMoveW;
+        int byMoveX = byAbilityX - 6 - byMoveW;
         FlatButton byMove = addRenderableWidget(new FlatButton(byMoveX, SEARCH_Y, byMoveW, 16, byMoveLabel,
                 () -> minecraft.setScreen(new MoveSearchScreen(this, null))));
         byMove.setTooltip(Tooltip.create(Component.literal("Qui apprend une attaque ? (ex. Distorsion)")));
@@ -575,6 +582,7 @@ public final class FeurinfoScreen extends Screen {
     }
 
     @Nullable private FlatButton shinyNormalButton;
+    @Nullable private AbilityLine lastHoveredAbility;
     private int typesButtonX;
     @Nullable private FlatButton ultraButton;
 
@@ -798,6 +806,11 @@ public final class FeurinfoScreen extends Screen {
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        if (button == 0 && lastHoveredAbility != null && !dropdownOpen()) {
+            // Clic sur un talent : tous les Pokémon qui peuvent l'avoir
+            minecraft.setScreen(new AbilitySearchScreen(this, lastHoveredAbility.template()));
+            return true;
+        }
         for (Object[] t : headerTypes) {
             if (inRect(mouseX, mouseY, (int) t[0], 8, (int) t[1], 14)) {
                 minecraft.setScreen(new TypeBrowserScreen(this, (String) t[2]));
@@ -1055,12 +1068,14 @@ public final class FeurinfoScreen extends Screen {
         // 1er passage : fonds, barres
         Theme.divider(graphics, x0 - 3, infoY - 3, x1 - x0 + 6);
         AbilityLine hoveredAbility = null;
+        lastHoveredAbility = null;
         for (int i = 0; i < abilities.size(); i++) {
             AbilityLine line = abilities.get(i);
             int ry = abilitiesY + i * INFO_ROW;
             boolean hover = mouseX >= x0 - 3 && mouseX < x1 + 3 && mouseY >= ry - 1 && mouseY < ry + INFO_ROW - 1;
             if (hover) {
                 hoveredAbility = line;
+                lastHoveredAbility = line;
             }
             int bg = line.hidden() ? (hover ? 0xFF3B3060 : 0xFF2A2442) : (hover ? Theme.CARD_HOVER : Theme.CARD);
             Theme.rect(graphics, x0 - 3, ry - 1, x1 - x0 + 6, INFO_ROW - 1, 2, bg);
@@ -1137,6 +1152,7 @@ public final class FeurinfoScreen extends Screen {
             if (I18n.exists(descKey)) {
                 lines.addAll(font.split(Component.literal(I18n.get(descKey)).withStyle(ChatFormatting.GRAY), 220));
             }
+            lines.add(Component.literal("Clic : qui a ce talent ?").withStyle(ChatFormatting.DARK_AQUA).getVisualOrderText());
             graphics.renderTooltip(font, lines, mouseX, mouseY);
         }
     }
