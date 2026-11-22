@@ -32,7 +32,12 @@ public final class TimerHud {
         if (!cfg.enabled || client.player == null || client.options.hideGui) return;
         if (client.getDebugOverlay().showDebugScreen()) return;
 
-        List<TimerStore.Timer> timers = TimerStore.get().list();
+        List<TimerStore.Timer> timers = new java.util.ArrayList<>(TimerStore.get().list());
+        // Le plus proche en haut, le plus lointain en bas ; les timers périmés ("/leg ?") tout en bas
+        long staleMs = cfg.staleAfterSeconds * 1000L;
+        timers.sort(java.util.Comparator
+                .comparing((TimerStore.Timer t) -> t.remainingMillis() <= -staleMs)
+                .thenComparingLong(t -> t.endMillis));
         Font tr = client.font;
         String title = "Feur-Leg";
         String hint = "ouvre /leg pour charger les timers";
