@@ -41,6 +41,8 @@ public final class BattleLog {
     /** Le terrain lu dans les messages : a = ton côté ("ally"), b = l'adversaire ("opponent"). */
     private static FieldState field = new FieldState();
     private static int fieldVersion;
+    private static boolean weatherSeen;
+    private static boolean terrainSeen;
     @Nullable private static UUID battleId;
 
     // Talent connu rien qu'à la clé du message (le nom du Pokémon est le 1er argument)
@@ -123,6 +125,8 @@ public final class BattleLog {
             prevMine = Set.of();
             prevOpp = Set.of();
             field = new FieldState(); // nouveau combat : terrain vide
+            weatherSeen = false;
+            terrainSeen = false;
             fieldVersion++;
         }
         Component message;
@@ -290,8 +294,9 @@ public final class BattleLog {
 
     /** Recopie le terrain du combat dans le calculateur (a = toi, b = l'adversaire). */
     public static void applyField(FieldState target) {
-        target.weather = field.weather;
-        target.terrain = field.terrain;
+        // Pas de message pour les météos primales : on ne touche à la météo / au champ qu'une fois qu'un message en a parlé
+        if (weatherSeen) target.weather = field.weather;
+        if (terrainSeen) target.terrain = field.terrain;
         target.gravity = field.gravity;
         copySide(field.a, target.a);
         copySide(field.b, target.b);
@@ -318,6 +323,7 @@ public final class BattleLog {
                 default -> null;
             };
             if (w == null) return false;
+            weatherSeen = true;
             if (p[2].equals("end")) {
                 if (w.equals(field.weather)) field.weather = "";
             } else {
@@ -334,6 +340,7 @@ public final class BattleLog {
                 default -> null;
             };
             if (t != null) {
+                terrainSeen = true;
                 if (start) field.terrain = t;
                 else if (t.equals(field.terrain)) field.terrain = "";
             } else if (p[1].equals("gravity")) {

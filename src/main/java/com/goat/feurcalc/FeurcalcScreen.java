@@ -1416,10 +1416,16 @@ public final class FeurcalcScreen extends Screen {
                 int raw = stats.get(Names.STAT_IDS[i]).getAsInt();
                 int boost = i == 0 ? 0 : m.boosts[i];
                 int value = boosted(raw, boost);
-                textRight(String.valueOf(value), l.x + colStatRight, rty, boost > 0 ? 0xFF7FE08A : boost < 0 ? 0xFFFF8A7A : C_TEXT);
-                if (boost != 0) {
-                    tipArea(mx, my, l.x + colStatRight - 30, ry, 30, chipH,
-                            List.of(tr("feurcalc.tip.boosted", raw, value)));
+                String weatherTip = weatherStatTip(summary, i);
+                if (weatherTip != null) {
+                    value = value * 3 / 2; // Glace sous la Neige : Déf ×1,5 ; Roche dans le Sable : Déf.Spé ×1,5
+                }
+                textRight(String.valueOf(value), l.x + colStatRight, rty,
+                        boost > 0 || (weatherTip != null && boost == 0) ? 0xFF7FE08A : boost < 0 ? 0xFFFF8A7A : C_TEXT);
+                if (boost != 0 || weatherTip != null) {
+                    List<Component> tip = new java.util.ArrayList<>(List.of(tr("feurcalc.tip.boosted", raw, value)));
+                    if (weatherTip != null) tip.add(tr(weatherTip));
+                    tipArea(mx, my, l.x + colStatRight - 30, ry, 30, chipH, tip);
                 }
             }
             if (i == 0) {
@@ -1437,6 +1443,22 @@ public final class FeurcalcScreen extends Screen {
             chip(g, vx + 20 + boostGap, ry, boostStep, h, "+", C_TEXT, false, true, mx, my,
                     () -> m.boosts[stat] = Math.min(6, m.boosts[stat] + 1), null, null);
         }
+    }
+
+    /** Le bonus de météo sur une stat (déjà compté par le calcul des dégâts), ou null. */
+    @Nullable
+    private String weatherStatTip(@Nullable JsonObject summary, int i) {
+        String w = state.field.weather;
+        String type = i == 2 && "Snow".equals(w) ? "Ice" : i == 4 && "Sand".equals(w) ? "Rock" : null;
+        if (type == null || summary == null || !summary.has("types")) {
+            return null;
+        }
+        for (com.google.gson.JsonElement t : summary.getAsJsonArray("types")) {
+            if (t.getAsString().equalsIgnoreCase(type)) {
+                return i == 2 ? "feurcalc.tip.snow_def" : "feurcalc.tip.sand_spd";
+            }
+        }
+        return null;
     }
 
     private static int boosted(int raw, int boost) {

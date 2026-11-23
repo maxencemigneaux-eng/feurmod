@@ -85,6 +85,7 @@ public final class CalcState {
             "drought", "Sun", "orichalcumpulse", "Sun", "desolateland", "Harsh Sunshine",
             "drizzle", "Rain", "primordialsea", "Heavy Rain", "deltastream", "Strong Winds",
             "sandstream", "Sand", "snowwarning", "Snow");
+    private static final java.util.Set<String> PRIMAL_WEATHERS = java.util.Set.of("Harsh Sunshine", "Heavy Rain", "Strong Winds");
     private static final java.util.Map<String, String> TERRAIN_ABILITIES = java.util.Map.of(
             "electricsurge", "Electric", "hadronengine", "Electric", "grassysurge", "Grassy",
             "psychicsurge", "Psychic", "mistysurge", "Misty");
@@ -131,7 +132,10 @@ public final class CalcState {
                 field.terrain = terrainBefore == null ? "" : terrainBefore;
                 terrainSet = null;
             }
-            if (weather != null && !weather.equals(field.weather)) {
+            // Une météo primale (Terre Finale, Mer Primaire, Souffle Delta) ne peut pas être remplacée par une météo normale
+            boolean primalBlocks = weather != null && PRIMAL_WEATHERS.contains(field.weather) && !PRIMAL_WEATHERS.contains(weather)
+                    && field.weather.equals(WEATHER_ABILITIES.get(otherAbility));
+            if (weather != null && !weather.equals(field.weather) && !primalBlocks) {
                 if (weatherSet == null) weatherBefore = field.weather;
                 field.weather = weather;
                 weatherSet = weather;

@@ -101,6 +101,8 @@
   "feurcalc.tip.ev_left": "EV restants : %s",
   "feurcalc.tip.scroll": "Molette sur une case : IV ±1, EV ±4 (Maj : min/max)",
   "feurcalc.tip.boosted": "%s sans boost → %s avec",
+  "feurcalc.tip.snow_def": "+50 % de Déf. : type Glace sous la Neige (compté dans les dégâts)",
+  "feurcalc.tip.sand_spd": "+50 % de Déf.Spé : type Roche dans la Tempête de Sable (compté dans les dégâts)",
   "feurcalc.tip.crit": "Calcule les dégâts en coup critique",
   "feurcalc.tip.swap": "Inverser les deux côtés",
   "feurcalc.tip.reflect": "Protection du côté de %s : réduit les dégâts physiques reçus",

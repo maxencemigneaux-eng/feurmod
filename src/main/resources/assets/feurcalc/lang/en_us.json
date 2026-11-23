@@ -101,6 +101,8 @@
   "feurcalc.tip.ev_left": "EVs left: %s",
   "feurcalc.tip.scroll": "Scroll on a box: IV ±1, EV ±4 (Shift: min/max)",
   "feurcalc.tip.boosted": "%s without boosts → %s with",
+  "feurcalc.tip.snow_def": "+50% Def: Ice type in Snow (counted in damage)",
+  "feurcalc.tip.sand_spd": "+50% SpD: Rock type in Sandstorm (counted in damage)",
   "feurcalc.tip.crit": "Calculate critical-hit damage",
   "feurcalc.tip.swap": "Swap both sides",
   "feurcalc.tip.reflect": "Reflect on %s's side: reduces physical damage taken",
