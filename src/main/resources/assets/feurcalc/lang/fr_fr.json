@@ -192,5 +192,6 @@
   "feurcalc.weather.harsh_sunshine": "Terre Finale",
   "feurcalc.weather.heavy_rain": "Mer Primaire",
   "feurcalc.weather.strong_winds": "Souffle Delta",
-  "feurcalc.picker.team": "Ton équipe"
+  "feurcalc.picker.team": "Ton équipe",
+  "feurcalc.tip.z": "Capacités Z : chaque attaque offensive devient sa capacité Z (puissance Z). Clic droit : enlever."
 }

@@ -115,7 +115,7 @@ function makePokemon(p) {
   return mon;
 }
 
-function moveResults(attacker, defender, moves, field, crit) {
+function moveResults(attacker, defender, moves, field, crit, useZ) {
   const out = [];
   const maxHP = defender.maxHP();
   for (const id of (moves || [])) {
@@ -132,11 +132,13 @@ function moveResults(attacker, defender, moves, field, crit) {
     try {
       const move = new Move(gen, data.name, {
         isCrit: !!crit,
+        useZ: !!useZ, // capacités Z (bouton Z du calculateur)
         species: attacker.name,
         ability: attacker.ability,
         item: attacker.item,
       });
       const res = calculate(gen, attacker, defender, move, field);
+      if (useZ && move.name !== data.name) r.zName = move.name;
       const [min, max] = res.range();
       r.min = min;
       r.max = max;
@@ -207,8 +209,8 @@ function calc(json) {
   };
   out.a.megas = megaNames(q.a.species);
   out.b.megas = megaNames(q.b.species);
-  out.a.moves = moveResults(a, b, q.a.moves, fieldAB, q.crit);
-  out.b.moves = moveResults(b, a, q.b.moves, fieldBA, q.crit);
+  out.a.moves = moveResults(a, b, q.a.moves, fieldAB, q.crit, q.a.z);
+  out.b.moves = moveResults(b, a, q.b.moves, fieldBA, q.crit, q.b.z);
   return JSON.stringify(out);
 }
 

@@ -1215,7 +1215,12 @@ public final class FeurcalcScreen extends Screen {
         int hy = textY(y, chipH) + (rowH - chipH) / 2;
         MonState target = mon(1 - s);
         String vs = Names.tr("feurcalc.moves.vs", target.isEmpty() ? "?" : shortName(target));
-        text(Ui.ellipsize(font, vs, barX - 8 - l.x), l.x, hy, C_LABEL);
+        // Bouton Z (capacités Z, comme Showdex), juste avant la colonne des dégâts
+        int zW = 18;
+        int zX = barX - 8 - zW;
+        chip(g, zX, y + (rowH - chipH) / 2, zW, chipH, "Z", m.z ? 0xFF7FD3FF : C_DIM, m.z, true, mx, my,
+                () -> m.z = !m.z, () -> m.z = false, List.of(tr("feurcalc.tip.z")));
+        text(Ui.ellipsize(font, vs, zX - 6 - l.x), l.x, hy, C_LABEL);
         textCenter(Names.tr("feurcalc.moves.damage"), barX + barW / 2, hy, C_LABEL);
         textCenter(Names.tr("feurcalc.moves.ko"), koRight - (koColW - 6) / 2, hy, C_LABEL);
 
@@ -1233,6 +1238,12 @@ public final class FeurcalcScreen extends Screen {
             int nameW = barX - 6 - nameX;
             String label = id.isEmpty() ? Names.tr("feurcalc.moves.empty") : Names.moveName(id);
             JsonObject r = id.isEmpty() || target.isEmpty() ? null : state.move(s == 0, i);
+            if (r != null && !CalcState.getString(r, "zName").isEmpty()) {
+                // Nom de la capacité Z (traduit si Cobblemon la connaît)
+                String zName = CalcState.getString(r, "zName");
+                String zId = Names.normalize(zName);
+                label = Names.move(zId) != null ? Names.moveName(zId) : zName;
+            }
             List<Component> tip = new ArrayList<>();
             if (template != null) {
                 tip.add(template.getDisplayName().copy().withStyle(ChatFormatting.YELLOW));

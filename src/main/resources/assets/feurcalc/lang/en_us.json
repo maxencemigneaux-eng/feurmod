@@ -192,5 +192,6 @@
   "feurcalc.weather.harsh_sunshine": "Harsh Sunshine",
   "feurcalc.weather.heavy_rain": "Heavy Rain",
   "feurcalc.weather.strong_winds": "Strong Winds",
-  "feurcalc.picker.team": "Your team"
+  "feurcalc.picker.team": "Your team",
+  "feurcalc.tip.z": "Z-Moves: each damaging move becomes its Z-Move (Z power). Right-click: off."
 }

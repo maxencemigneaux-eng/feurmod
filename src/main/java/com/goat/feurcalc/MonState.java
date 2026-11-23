@@ -45,6 +45,8 @@ public final class MonState {
     public int mega = 0;
     /** Talent d'avant la Méga-évolution, pour le remettre quand on l'enlève. */
     @Nullable public String abilityBeforeMega;
+    /** Capacités Z (bouton Z au-dessus des attaques). */
+    public boolean z = false;
     public final int[] ivs = {31, 31, 31, 31, 31, 31};
     public final int[] evs = {0, 0, 0, 0, 0, 0};
     /** Index 0 (PV) inutilisé. */
@@ -105,6 +107,7 @@ public final class MonState {
         teraType = o.teraType;
         tera = o.tera;
         mega = o.mega;
+        z = o.z;
         abilityBeforeMega = o.abilityBeforeMega;
         System.arraycopy(o.ivs, 0, ivs, 0, 6);
         System.arraycopy(o.evs, 0, evs, 0, 6);
@@ -481,6 +484,7 @@ public final class MonState {
         o.addProperty("teraType", teraType);
         o.addProperty("tera", tera);
         o.addProperty("mega", cobblemonMegas ? 0 : mega);
+        o.addProperty("z", z);
         o.addProperty("status", status);
         o.addProperty("hpPercent", hpPercent);
         o.add("ivs", statObject(ivs));
