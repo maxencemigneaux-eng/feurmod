@@ -74,7 +74,7 @@ public final class TextCapture {
         frame.clear();
 
         Map<String, Long> found = findTimers(entries);
-        if (found.size() >= 2) {
+        if (found.size() >= 2 && isLegScreen(entries)) {
             TimerStore.get().sync(found);
             detectCurrentZone(entries, found);
             if (!autoDumpedThisScreen) {
@@ -86,6 +86,20 @@ public final class TextCapture {
             dumpRequested = false;
             writeDump(entries, screen, found, true);
         }
+    }
+
+    /**
+     * Seul le menu /leg a la ligne « zone · moment · météo » (deux « · » et un moment de la journée) :
+     * les autres menus avec des chronos (ventes, quêtes...) ne créent donc plus de faux timers.
+     */
+    private static boolean isLegScreen(List<Entry> entries) {
+        for (Entry e : entries) {
+            String t = e.text().replace('•', '·').replace('∙', '·');
+            if (t.chars().filter(ch -> ch == '·').count() >= 2 && ZonePeriods.findWord(t) != null) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** Associe chaque timer au texte placé juste au-dessus (le nom de la zone). */

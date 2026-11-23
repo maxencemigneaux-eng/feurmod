@@ -353,26 +353,50 @@ public final class CalcState {
 
     private static final java.nio.file.Path SEEN_FILE =
             net.fabricmc.loader.api.FabricLoader.getInstance().getConfigDir().resolve("feurcalc_seen.json");
-    private static boolean seenLoaded;
     private static boolean seenDirty;
+    /** Le serveur dont la liste est chargée (chaque serveur a sa propre liste). */
+    @Nullable private static String seenServer;
 
-    /** La liste, chargée depuis le fichier au premier accès (une fois les espèces de Cobblemon connues). */
+    private static String serverKey() {
+        net.minecraft.client.multiplayer.ServerData d = net.minecraft.client.Minecraft.getInstance().getCurrentServer();
+        return d == null ? "solo" : d.ip.trim().toLowerCase(java.util.Locale.ROOT);
+    }
+
+    /** La liste du serveur actuel, chargée depuis le fichier au premier accès (une fois les espèces de Cobblemon connues). */
     public static java.util.LinkedHashMap<UUID, MonState> seenOpponents() {
-        if (!seenLoaded && !com.cobblemon.mod.common.api.pokemon.PokemonSpecies.getSpecies().isEmpty()) {
-            seenLoaded = true;
+        String key = serverKey();
+        if (!key.equals(seenServer) && !com.cobblemon.mod.common.api.pokemon.PokemonSpecies.getSpecies().isEmpty()) {
+            if (seenServer != null) {
+                saveSeenIfNeeded(); // garde la liste de l'ancien serveur
+                SEEN_OPPONENTS.clear();
+            }
+            seenServer = key;
             loadSeen();
         }
         return SEEN_OPPONENTS;
     }
 
-    private static void loadSeen() {
-        if (!java.nio.file.Files.exists(SEEN_FILE)) {
-            return;
+    /** Tout le fichier : { "servers": { "adresse": { uuid: {...} } } }. L'ancien format (sans serveurs) est rendu tel quel. */
+    private static JsonObject readSeenFile() {
+        try {
+            if (java.nio.file.Files.exists(SEEN_FILE)) {
+                return com.google.gson.JsonParser.parseString(
+                        java.nio.file.Files.readString(SEEN_FILE, java.nio.charset.StandardCharsets.UTF_8)).getAsJsonObject();
+            }
+        } catch (Exception ignored) {
+            // fichier illisible : on repart de zéro
         }
+        return new JsonObject();
+    }
+
+    private static void loadSeen() {
         java.util.LinkedHashMap<UUID, MonState> loaded = new java.util.LinkedHashMap<>();
         try {
-            JsonObject root = com.google.gson.JsonParser.parseString(
-                    java.nio.file.Files.readString(SEEN_FILE, java.nio.charset.StandardCharsets.UTF_8)).getAsJsonObject();
+            JsonObject file = readSeenFile();
+            // Ancien fichier sans serveurs : la liste va au premier serveur ouvert
+            JsonObject root = !file.has("servers") ? file
+                    : file.getAsJsonObject("servers").has(seenServer) ? file.getAsJsonObject("servers").getAsJsonObject(seenServer)
+                    : new JsonObject();
             for (java.util.Map.Entry<String, JsonElement> e : root.entrySet()) {
                 try {
                     JsonObject o = e.getValue().getAsJsonObject();
@@ -410,6 +434,9 @@ public final class CalcState {
             return;
         }
         seenDirty = false;
+        String server = seenServer != null ? seenServer : serverKey();
+        JsonObject file = readSeenFile();
+        JsonObject servers = file.has("servers") ? file.getAsJsonObject("servers") : new JsonObject();
         JsonObject root = new JsonObject();
         for (java.util.Map.Entry<UUID, MonState> e : SEEN_OPPONENTS.entrySet()) {
             MonState m = e.getValue();
@@ -425,7 +452,10 @@ public final class CalcState {
         }
         try {
             java.nio.file.Files.createDirectories(SEEN_FILE.getParent());
-            java.nio.file.Files.writeString(SEEN_FILE, new com.google.gson.GsonBuilder().setPrettyPrinting().create().toJson(root),
+            servers.add(server, root);
+            JsonObject out = new JsonObject();
+            out.add("servers", servers);
+            java.nio.file.Files.writeString(SEEN_FILE, new com.google.gson.GsonBuilder().setPrettyPrinting().create().toJson(out),
                     java.nio.charset.StandardCharsets.UTF_8);
         } catch (Exception ignored) {
             seenDirty = true; // on réessaiera à la prochaine sauvegarde
