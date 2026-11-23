@@ -252,12 +252,14 @@ public final class MonState {
         hpPercent = Math.max(0, Math.min(100, hpPercent));
         PersistentStatus persistent = battlePokemon.getStatus();
         status = persistent != null ? persistent.getShowdownName() : "";
+        // Le client Cobblemon ne remplit pas getStatChanges() : on prend les boosts lus dans les messages
+        int[] tracked = BattleLog.boosts(battlePokemon.getUuid());
         for (int i = 1; i < 6; i++) {
-            boosts[i] = 0;
+            boosts[i] = tracked[i];
         }
         for (Map.Entry<Stat, Integer> e : battlePokemon.getStatChanges().entrySet()) {
             int index = Names.statIndex(e.getKey());
-            if (index > 0 && e.getValue() != null) {
+            if (index > 0 && e.getValue() != null && e.getValue() != 0) {
                 boosts[index] = Math.max(-6, Math.min(6, e.getValue()));
             }
         }
@@ -267,7 +269,8 @@ public final class MonState {
     public static String battleSignature(ClientBattlePokemon bp) {
         PersistentStatus persistent = bp.getStatus();
         return bp.getHpValue() + "/" + bp.getMaxHp() + "/" + (persistent == null ? "" : persistent.getShowdownName())
-                + "/" + new TreeMap<>(stringKeys(bp.getStatChanges()));
+                + "/" + new TreeMap<>(stringKeys(bp.getStatChanges()))
+                + "/" + java.util.Arrays.toString(BattleLog.boosts(bp.getUuid()));
     }
 
     private static Map<String, Integer> stringKeys(Map<Stat, Integer> map) {

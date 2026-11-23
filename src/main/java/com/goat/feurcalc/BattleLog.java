@@ -31,6 +31,8 @@ public final class BattleLog {
 
     private static final ConcurrentLinkedQueue<Component> PENDING = new ConcurrentLinkedQueue<>();
     private static final Map<UUID, Revealed> REVEALED = new HashMap<>();
+    /** Boosts suivis depuis les messages (le client Cobblemon ne les garde pas) : index 1..5 = Atq..Vit. */
+    private static final Map<UUID, int[]> BOOSTS = new HashMap<>();
     @Nullable private static UUID battleId;
 
     // Talent connu rien qu'à la clé du message (le nom du Pokémon est le 1er argument)
@@ -108,6 +110,7 @@ public final class BattleLog {
         if (!battle.getBattleId().equals(battleId)) {
             battleId = battle.getBattleId();
             REVEALED.clear();
+            BOOSTS.clear();
         }
         Component message;
         while ((message = PENDING.poll()) != null) {
@@ -211,8 +214,117 @@ public final class BattleLog {
                 ability(battle, arg(args, 0), traced);
                 ability(battle, arg(args, 1), traced);
             }
-            default -> handleOther(battle, k, args);
+            default -> {
+                if (!handleBoost(battle, k, args)) {
+                    handleOther(battle, k, args);
+                }
+            }
         }
+    }
+
+    // =======================================================================================
+    // Boosts (Danse-Lames, Intimidation, Buée Noire...)
+
+    /** Les boosts suivis pour ce Pokémon (0 partout si rien vu). */
+    public static int[] boosts(@Nullable UUID uuid) {
+        int[] b = uuid == null ? null : BOOSTS.get(uuid);
+        return b == null ? new int[6] : b.clone();
+    }
+
+    private static void clearBoosts(@Nullable UUID uuid) {
+        if (uuid != null) {
+            BOOSTS.remove(uuid);
+        }
+    }
+
+    /** Ceux qui ont quitté le terrain perdent leurs boosts. shortcut: Relais garde les boosts, pas géré. */
+    public static void keepBoostsOf(Set<UUID> onField) {
+        BOOSTS.keySet().retainAll(onField);
+    }
+
+    private static int[] boostsOf(ClientBattlePokemon p) {
+        return BOOSTS.computeIfAbsent(p.getUuid(), u -> new int[6]);
+    }
+
+    private static boolean handleBoost(ClientBattle battle, String k, Object[] args) {
+        String base = k.endsWith(".zeffect") ? k.substring(0, k.length() - ".zeffect".length()) : k;
+        int amount = switch (base) {
+            case "boost.slight" -> 1;
+            case "boost.sharp" -> 2;
+            case "boost.severe" -> 3;
+            case "unboost.slight" -> -1;
+            case "unboost.sharp" -> -2;
+            case "unboost.severe" -> -3;
+            default -> 0;
+        };
+        if (amount != 0) {
+            ClientBattlePokemon p = resolve(battle, arg(args, 0));
+            int stat = statIndex(arg(args, 1));
+            if (p != null && stat > 0) {
+                int[] b = boostsOf(p);
+                b[stat] = Math.max(-6, Math.min(6, b[stat] + amount));
+            }
+            return true;
+        }
+        ClientBattlePokemon p1 = resolve(battle, arg(args, 0));
+        switch (base) {
+            case "clearallboost" -> BOOSTS.clear();
+            case "clearboost" -> clearBoosts(p1 == null ? null : p1.getUuid());
+            case "clearallnegativeboost" -> {
+                if (p1 != null) {
+                    int[] b = boostsOf(p1);
+                    for (int i = 1; i < 6; i++) b[i] = Math.max(0, b[i]);
+                }
+            }
+            case "invertboost" -> {
+                if (p1 != null) {
+                    int[] b = boostsOf(p1);
+                    for (int i = 1; i < 6; i++) b[i] = -b[i];
+                }
+            }
+            case "setboost.bellydrum", "setboost.angerpoint" -> {
+                if (p1 != null) boostsOf(p1)[1] = 6;
+            }
+            case "swapboost.generic", "swapboost.heartswap", "swapboost.guardswap", "swapboost.powerswap" -> {
+                // Message : "<lanceur> ... <cible>" ; sans cible nommée, l'adversaire en face
+                ClientBattlePokemon p2 = resolve(battle, arg(args, 1));
+                if (p1 != null && p2 != null) {
+                    int[] stats = base.equals("swapboost.guardswap") ? new int[]{2, 4}
+                            : base.equals("swapboost.powerswap") ? new int[]{1, 3} : new int[]{1, 2, 3, 4, 5};
+                    int[] a = boostsOf(p1), b = boostsOf(p2);
+                    for (int i : stats) {
+                        int t = a[i];
+                        a[i] = b[i];
+                        b[i] = t;
+                    }
+                }
+            }
+            case "copyboost.generic" -> {
+                ClientBattlePokemon p2 = resolve(battle, arg(args, 1));
+                if (p1 != null && p2 != null) System.arraycopy(boostsOf(p2), 0, boostsOf(p1), 0, 6);
+            }
+            default -> {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** "cobblemon.stat.attack.name" (ou son texte traduit) → 1..5 ; -1 pour PV / précision / esquive. */
+    private static int statIndex(@Nullable Object statArg) {
+        String[] ids = {"", "attack", "defence", "special_attack", "special_defence", "speed"};
+        if (statArg instanceof Component c && c.getContents() instanceof TranslatableContents t) {
+            for (int i = 1; i < 6; i++) {
+                if (t.getKey().equals("cobblemon.stat." + ids[i] + ".name")) return i;
+            }
+        }
+        String shown = text(statArg);
+        for (int i = 1; i < 6; i++) {
+            if (shown.equalsIgnoreCase(net.minecraft.client.resources.language.I18n.get("cobblemon.stat." + ids[i] + ".name"))) {
+                return i;
+            }
+        }
+        return -1;
     }
 
     private static void handleOther(ClientBattle battle, String k, Object[] args) {

@@ -275,6 +275,14 @@ public final class CalcState {
             myActiveUuids.add(p.getUuid());
         }
         battleTeam = myTeam(mySide, me);
+        // Ceux qui ne sont plus sur le terrain perdent leurs boosts (combat double compris)
+        if (!myActives.isEmpty() && !oppActives.isEmpty()) {
+            java.util.Set<UUID> onField = new java.util.HashSet<>(myActiveUuids);
+            for (ClientBattlePokemon p : oppActives) {
+                onField.add(p.getUuid());
+            }
+            BattleLog.keepBoostsOf(onField);
+        }
 
         ClientBattlePokemon mine = myActives.isEmpty() ? null : myActives.get(Math.floorMod(mySlot, myActives.size()));
         if (mine != null) {
