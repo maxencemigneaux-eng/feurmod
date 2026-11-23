@@ -1,2 +1,2 @@
-Compilation réussie : Feurmod 1.0.39 (essai n°43) le 2026-11-23 17:30 UTC
-feurmod-1.0.39+cobblemon1.8.jar
+Compilation réussie : Feurmod 1.0.40 (essai n°44) le 2026-11-23 17:33 UTC
+feurmod-1.0.40+cobblemon1.8.jar
