@@ -33,6 +33,14 @@ public final class BattleLog {
     private static final Map<UUID, Revealed> REVEALED = new HashMap<>();
     /** Boosts suivis depuis les messages (le client Cobblemon ne les garde pas) : index 1..5 = Atq..Vit. */
     private static final Map<UUID, int[]> BOOSTS = new HashMap<>();
+    /** Ceux qui viennent d'utiliser Relais : leurs boosts iront au remplaçant. */
+    private static final Set<UUID> PASSING = new java.util.HashSet<>();
+    private static Set<UUID> prevMine = Set.of();
+    private static Set<UUID> prevOpp = Set.of();
+
+    /** Le terrain lu dans les messages : a = ton côté ("ally"), b = l'adversaire ("opponent"). */
+    private static FieldState field = new FieldState();
+    private static int fieldVersion;
     @Nullable private static UUID battleId;
 
     // Talent connu rien qu'à la clé du message (le nom du Pokémon est le 1er argument)
@@ -111,6 +119,11 @@ public final class BattleLog {
             battleId = battle.getBattleId();
             REVEALED.clear();
             BOOSTS.clear();
+            PASSING.clear();
+            prevMine = Set.of();
+            prevOpp = Set.of();
+            field = new FieldState(); // nouveau combat : terrain vide
+            fieldVersion++;
         }
         Component message;
         while ((message = PENDING.poll()) != null) {
@@ -215,7 +228,7 @@ public final class BattleLog {
                 ability(battle, arg(args, 1), traced);
             }
             default -> {
-                if (!handleBoost(battle, k, args)) {
+                if (!handleBoost(battle, k, args) && !handleField(k)) {
                     handleOther(battle, k, args);
                 }
             }
@@ -237,9 +250,117 @@ public final class BattleLog {
         }
     }
 
-    /** Ceux qui ont quitté le terrain perdent leurs boosts. shortcut: Relais garde les boosts, pas géré. */
-    public static void keepBoostsOf(Set<UUID> onField) {
+    /**
+     * Qui est sur le terrain de chaque côté. Ceux qui sont sortis perdent leurs boosts,
+     * sauf après Relais : le remplaçant les reçoit.
+     */
+    public static void updateField(Set<UUID> mine, Set<UUID> opp) {
+        passBoosts(prevMine, mine);
+        passBoosts(prevOpp, opp);
+        prevMine = Set.copyOf(mine);
+        prevOpp = Set.copyOf(opp);
+        Set<UUID> onField = new java.util.HashSet<>(mine);
+        onField.addAll(opp);
         BOOSTS.keySet().retainAll(onField);
+        PASSING.retainAll(onField);
+    }
+
+    private static void passBoosts(Set<UUID> before, Set<UUID> now) {
+        for (UUID left : before) {
+            if (now.contains(left) || !PASSING.remove(left)) {
+                continue;
+            }
+            for (UUID arrived : now) {
+                if (!before.contains(arrived)) {
+                    int[] b = BOOSTS.get(left);
+                    if (b != null) BOOSTS.put(arrived, b.clone());
+                    break;
+                }
+            }
+        }
+    }
+
+    // =======================================================================================
+    // Terrain : météo, champ, Gravité, Protection / Mur Lumière / Voile Aurore, Piège de Roc, Picots, Vent Arrière
+
+    /** Change à chaque fois que le terrain du combat bouge (pour ne recopier qu'à ce moment-là). */
+    public static int fieldVersion() {
+        return fieldVersion;
+    }
+
+    /** Recopie le terrain du combat dans le calculateur (a = toi, b = l'adversaire). */
+    public static void applyField(FieldState target) {
+        target.weather = field.weather;
+        target.terrain = field.terrain;
+        target.gravity = field.gravity;
+        copySide(field.a, target.a);
+        copySide(field.b, target.b);
+    }
+
+    private static void copySide(FieldState.Side from, FieldState.Side to) {
+        to.reflect = from.reflect;
+        to.lightScreen = from.lightScreen;
+        to.auroraVeil = from.auroraVeil;
+        to.stealthRock = from.stealthRock;
+        to.tailwind = from.tailwind;
+        to.spikes = from.spikes;
+    }
+
+    private static boolean handleField(String k) {
+        String[] p = k.split("\\.");
+        boolean changed = true;
+        if (p.length == 3 && p[0].equals("weather")) {
+            String w = switch (p[1]) {
+                case "raindance" -> "Rain";
+                case "sunnyday" -> "Sun";
+                case "sandstorm" -> "Sand";
+                case "hail", "snow" -> "Snow"; // shortcut: la grêle compte comme la neige (pas de Grêle dans le calc gen 9)
+                default -> null;
+            };
+            if (w == null) return false;
+            if (p[2].equals("end")) {
+                if (w.equals(field.weather)) field.weather = "";
+            } else {
+                changed = !w.equals(field.weather); // "upkeep" : la météo continue
+                field.weather = w;
+            }
+        } else if (p.length == 2 && (p[0].equals("fieldstart") || p[0].equals("fieldend"))) {
+            boolean start = p[0].equals("fieldstart");
+            String t = switch (p[1]) {
+                case "electricterrain" -> "Electric";
+                case "grassyterrain" -> "Grassy";
+                case "psychicterrain" -> "Psychic";
+                case "mistyterrain" -> "Misty";
+                default -> null;
+            };
+            if (t != null) {
+                if (start) field.terrain = t;
+                else if (t.equals(field.terrain)) field.terrain = "";
+            } else if (p[1].equals("gravity")) {
+                field.gravity = start;
+            } else {
+                return false;
+            }
+        } else if (p.length == 3 && (p[0].equals("sidestart") || p[0].equals("sideend"))) {
+            boolean start = p[0].equals("sidestart");
+            FieldState.Side side = p[1].equals("ally") ? field.a : p[1].equals("opponent") ? field.b : null;
+            if (side == null) return false;
+            switch (p[2]) {
+                case "reflect" -> side.reflect = start;
+                case "lightscreen" -> side.lightScreen = start;
+                case "auroraveil" -> side.auroraVeil = start;
+                case "stealthrock" -> side.stealthRock = start;
+                case "tailwind" -> side.tailwind = start;
+                case "spikes" -> side.spikes = start ? Math.min(3, side.spikes + 1) : 0;
+                default -> {
+                    return false;
+                }
+            }
+        } else {
+            return false;
+        }
+        if (changed) fieldVersion++;
+        return true;
     }
 
     private static int[] boostsOf(ClientBattlePokemon p) {
@@ -365,6 +486,10 @@ public final class BattleLog {
     private static void move(ClientBattle battle, @Nullable Object who, String move) {
         if (move.isEmpty() || move.equals("struggle")) {
             return;
+        }
+        if (move.equals("batonpass")) {
+            ClientBattlePokemon passer = resolve(battle, who);
+            if (passer != null) PASSING.add(passer.getUuid());
         }
         Revealed r = revealed(battle, who);
         if (r != null && r.moves.add(move)) {

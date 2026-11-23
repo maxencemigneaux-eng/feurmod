@@ -65,13 +65,6 @@ jobs:
           set -o pipefail
           gradle build --stacktrace -Pcobblemon_version="${{ steps.cobblemon.outputs.version }}" -Pcobblemon_tag="1.8" -Pmod_version="${{ steps.version.outputs.version }}" 2>&1 | tee /tmp/build.log
 
-      - name: (temporaire) Clés des messages de terrain de Cobblemon
-        continue-on-error: true
-        run: |
-          mkdir -p telechargement
-          J=$(find ~/.gradle/caches -path "*com.cobblemon*" -name "fabric-*.jar" ! -name "*sources*" | head -1)
-          unzip -p "$J" "assets/cobblemon/lang/en_us.json" | grep -iE '"cobblemon\.battle\.[^"]*(weather|terrain|sidestart|sideend|fieldstart|fieldend|fieldactivate|tailwind|reflect|lightscreen|auroraveil|stealthrock|spikes|stickyweb|trickroom|gravity|batonpass|wonderroom|magicroom|safeguard|mist|luckychant|sun|rain|sand|hail|snow|deltastream|desolate|primordial)[^"]*"' > telechargement/cobblemon-field-keys.txt || true
-
       - name: Mettre le .jar dans le dossier "telechargement" du dépôt
         run: |
           mkdir -p telechargement

@@ -52,6 +52,7 @@ public final class CalcState {
     @Nullable private UUID lastOppUuid;
     @Nullable private String lastMySig;
     @Nullable private String lastOppSig;
+    private int lastFieldVersion = -1;
 
     // Calcul
     @Nullable private String lastRequest;
@@ -275,13 +276,18 @@ public final class CalcState {
             myActiveUuids.add(p.getUuid());
         }
         battleTeam = myTeam(mySide, me);
-        // Ceux qui ne sont plus sur le terrain perdent leurs boosts (combat double compris)
+        // Ceux qui ne sont plus sur le terrain perdent leurs boosts (combat double compris, Relais géré)
         if (!myActives.isEmpty() && !oppActives.isEmpty()) {
-            java.util.Set<UUID> onField = new java.util.HashSet<>(myActiveUuids);
+            java.util.Set<UUID> opp = new java.util.HashSet<>();
             for (ClientBattlePokemon p : oppActives) {
-                onField.add(p.getUuid());
+                opp.add(p.getUuid());
             }
-            BattleLog.keepBoostsOf(onField);
+            BattleLog.updateField(new java.util.HashSet<>(myActiveUuids), opp);
+        }
+        // Météo, champ, murs, pièges... lus dans les messages : recopiés seulement quand ils changent
+        if (BattleLog.fieldVersion() != lastFieldVersion) {
+            lastFieldVersion = BattleLog.fieldVersion();
+            BattleLog.applyField(field);
         }
 
         ClientBattlePokemon mine = myActives.isEmpty() ? null : myActives.get(Math.floorMod(mySlot, myActives.size()));
