@@ -19,6 +19,7 @@ import java.util.concurrent.CompletableFuture;
 /**
  * /feurwiki                          → ouvre l'interface avec la recherche
  * /feurwiki dracaufeu                 → ouvre directement la fiche (noms FR/EN ou numéro, avec autocomplétion)
+ * /feurwiki export vol                → config/feurwiki-vol.csv : tous les Pokémon d'un type (Excel)
  *
  * Commande 100 % côté client : elle marche sur n'importe quel serveur, même sans le mod.
  */
@@ -42,6 +43,27 @@ public final class FeurinfoClient implements ClientModInitializer {
                     open(context.getSource().getClient(), null);
                     return 1;
                 })
+                .then(ClientCommandManager.literal("export")
+                        .then(ClientCommandManager.argument("type", StringArgumentType.word())
+                                .executes(context -> {
+                                    String type = StringArgumentType.getString(context, "type");
+                                    try {
+                                        java.nio.file.Path file = Exporter.export(type);
+                                        if (file == null) {
+                                            context.getSource().sendError(Component.literal("Aucun Pokémon de type « " + type + " »"));
+                                            return 0;
+                                        }
+                                        context.getSource().sendFeedback(Component.literal("§6[FeurWiki]§r Fiche écrite : ")
+                                                .append(Component.literal("§n" + file.getFileName()).withStyle(s -> s.withClickEvent(
+                                                        new net.minecraft.network.chat.ClickEvent(net.minecraft.network.chat.ClickEvent.Action.OPEN_FILE,
+                                                                file.toAbsolutePath().toString()))))
+                                                .append(Component.literal(" (dossier config, clique pour l'ouvrir)")));
+                                        return 1;
+                                    } catch (Exception e) {
+                                        context.getSource().sendError(Component.literal("Export impossible : " + e.getMessage()));
+                                        return 0;
+                                    }
+                                })))
                 .then(ClientCommandManager.argument("pokemon", StringArgumentType.greedyString())
                         .suggests(FeurinfoClient::suggestSpecies)
                         .executes(context -> {

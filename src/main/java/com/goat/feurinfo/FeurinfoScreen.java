@@ -311,6 +311,10 @@ public final class FeurinfoScreen extends Screen {
         abilities.addAll(hidden);
     }
 
+    static String abilityLabel(AbilityTemplate template) {
+        return abilityName(template);
+    }
+
     private static String abilityName(AbilityTemplate template) {
         String key = template.getDisplayName();
         return I18n.exists(key) ? I18n.get(key) : template.getName();
