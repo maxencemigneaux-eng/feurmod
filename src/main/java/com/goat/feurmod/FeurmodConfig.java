@@ -26,6 +26,8 @@ public final class FeurmodConfig {
     public boolean calcLevel100 = true;
     /** Opacité du fond des menus, en % (40 à 100). */
     public int panelOpacity = 100;
+    /** À la connexion, prévenir dans le chat s'il y a une nouvelle version du mod. */
+    public boolean checkUpdates = true;
 
     public static FeurmodConfig get() {
         if (instance == null) load();

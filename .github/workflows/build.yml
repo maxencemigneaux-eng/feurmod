@@ -36,6 +36,12 @@ jobs:
           npm run build
           test -s ../src/main/resources/assets/feurcalc/js/feurcalc.js
 
+      - name: Tester le calculateur (dégâts, météo, export PokePaste)
+        run: |
+          set -o pipefail
+          cd calc
+          node test.js 2>&1 | tee -a /tmp/build.log
+
       - name: Télécharger les sets Smogon et les stats d'utilisation de Showdown
         run: |
           cd calc
@@ -90,7 +96,7 @@ jobs:
         run: |
           touch /tmp/build.log
           mkdir -p ci
-          { echo "ECHEC essai n°${{ github.run_number }}"; echo; grep -nE "error:|FAILURE|What went wrong|Could not" /tmp/build.log | head -n 120; echo; echo "----- fin du log -----"; tail -n 150 /tmp/build.log; } > "ci/erreur-${{ github.run_number }}.txt"
+          { echo "ECHEC essai n°${{ github.run_number }}"; echo; grep -nE "error:|FAILURE|FAILED|ÉCHEC|What went wrong|Could not|expected:" /tmp/build.log | head -n 120; echo; echo "----- fin du log -----"; tail -n 150 /tmp/build.log; } > "ci/erreur-${{ github.run_number }}.txt"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add ci

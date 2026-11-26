@@ -379,64 +379,11 @@ public final class BattleLog {
     }
 
     private static boolean handleField(String k) {
-        String[] p = k.split("\\.");
-        boolean changed = true;
-        if (p.length == 3 && p[0].equals("weather")) {
-            String w = switch (p[1]) {
-                case "raindance" -> "Rain";
-                case "sunnyday" -> "Sun";
-                case "sandstorm" -> "Sand";
-                case "hail", "snow" -> "Snow"; // shortcut: la grêle compte comme la neige (pas de Grêle dans le calc gen 9)
-                default -> null;
-            };
-            if (w == null) return false;
-            weatherSeen = true;
-            if (p[2].equals("end")) {
-                if (w.equals(field.weather)) field.weather = "";
-            } else {
-                changed = !w.equals(field.weather); // "upkeep" : la météo continue
-                field.weather = w;
-            }
-        } else if (p.length == 2 && (p[0].equals("fieldstart") || p[0].equals("fieldend"))) {
-            boolean start = p[0].equals("fieldstart");
-            String t = switch (p[1]) {
-                case "electricterrain" -> "Electric";
-                case "grassyterrain" -> "Grassy";
-                case "psychicterrain" -> "Psychic";
-                case "mistyterrain" -> "Misty";
-                default -> null;
-            };
-            if (t != null) {
-                terrainSeen = true;
-                if (start) field.terrain = t;
-                else if (t.equals(field.terrain)) field.terrain = "";
-            } else if (p[1].equals("gravity")) {
-                field.gravity = start;
-            } else if (p[1].equals("trickroom")) {
-                field.trickRoom = start;
-            } else {
-                return false;
-            }
-        } else if (p.length == 3 && (p[0].equals("sidestart") || p[0].equals("sideend"))) {
-            boolean start = p[0].equals("sidestart");
-            FieldState.Side side = p[1].equals("ally") ? field.a : p[1].equals("opponent") ? field.b : null;
-            if (side == null) return false;
-            switch (p[2]) {
-                case "reflect" -> side.reflect = start;
-                case "lightscreen" -> side.lightScreen = start;
-                case "auroraveil" -> side.auroraVeil = start;
-                case "stealthrock" -> side.stealthRock = start;
-                case "tailwind" -> side.tailwind = start;
-                case "spikes" -> side.spikes = start ? Math.min(3, side.spikes + 1) : 0;
-                default -> {
-                    return false;
-                }
-            }
-        } else {
-            return false;
-        }
-        if (changed) fieldVersion++;
-        return true;
+        int r = FieldMessages.apply(field, k);
+        if ((r & FieldMessages.WEATHER) != 0) weatherSeen = true;
+        if ((r & FieldMessages.TERRAIN) != 0) terrainSeen = true;
+        if ((r & FieldMessages.CHANGED) != 0) fieldVersion++;
+        return (r & FieldMessages.HANDLED) != 0;
     }
 
     /** Change Côté : les murs, pièges et Vent Arrière changent de camp. */

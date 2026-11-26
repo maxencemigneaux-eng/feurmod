@@ -13,7 +13,9 @@ import java.nio.file.Path;
 public final class FeurlegConfig {
 
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
-    private static final Path FILE = FabricLoader.getInstance().getConfigDir().resolve("feurleg.json");
+    private static Path file() {
+        return FabricLoader.getInstance().getConfigDir().resolve("feurleg.json");
+    }
     private static FeurlegConfig instance;
 
     /** HUD visible ou non (touche K par défaut). */
@@ -74,8 +76,8 @@ public final class FeurlegConfig {
 
     public static void load() {
         try {
-            if (Files.exists(FILE)) {
-                instance = GSON.fromJson(Files.readString(FILE, StandardCharsets.UTF_8), FeurlegConfig.class);
+            if (Files.exists(file())) {
+                instance = GSON.fromJson(Files.readString(file(), StandardCharsets.UTF_8), FeurlegConfig.class);
             }
         } catch (Exception e) {
             FeurlegClient.LOGGER.warn("config/feurleg.json illisible, réglages par défaut utilisés", e);
@@ -99,8 +101,8 @@ public final class FeurlegConfig {
 
     public static void save() {
         try {
-            Files.createDirectories(FILE.getParent());
-            Files.writeString(FILE, GSON.toJson(instance), StandardCharsets.UTF_8);
+            Files.createDirectories(file().getParent());
+            Files.writeString(file(), GSON.toJson(instance), StandardCharsets.UTF_8);
         } catch (IOException e) {
             FeurlegClient.LOGGER.warn("Impossible d'enregistrer config/feurleg.json", e);
         }

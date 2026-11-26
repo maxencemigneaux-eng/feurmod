@@ -62,7 +62,9 @@ public final class SettingsScreen extends Screen {
             new Option("Opacité du fond", () -> fm.panelOpacity + " %",
                 () -> { fm.panelOpacity = fm.panelOpacity >= 100 ? 40 : fm.panelOpacity + 10; themeChanged(); },
                 () -> { fm.panelOpacity = fm.panelOpacity <= 40 ? 100 : fm.panelOpacity - 10; themeChanged(); },
-                "Transparence du fond des menus Feurinfo / Feurcalc (40 à 100 %)", () -> true))));
+                "Transparence du fond des menus Feurinfo / Feurcalc (40 à 100 %)", () -> true),
+            toggle("Prévenir des mises à jour", () -> fm.checkUpdates, v -> fm.checkUpdates = v,
+                "À la connexion, un message dans le chat avec le lien s'il y a une nouvelle version de Feurmod", FeurmodConfig::save))));
 
         sections.add(new Section("Calculateur de dégâts", List.of(
             toggle("Tous les Pokémon au niveau 100", () -> fm.calcLevel100, v -> fm.calcLevel100 = v,

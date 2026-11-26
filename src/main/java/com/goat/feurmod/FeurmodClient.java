@@ -30,6 +30,8 @@ public final class FeurmodClient implements ClientModInitializer {
     public void onInitializeClient() {
         FeurmodConfig.load();
         ScreenEvents.AFTER_INIT.register((client, screen, w, h) -> PcSearchBar.attach(screen));
+        net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents.JOIN.register(
+            (handler, sender, client) -> UpdateCheck.onJoin());
 
         settingsKey = KeyBindingHelper.registerKeyBinding(new KeyMapping(
             "key.feurmod.settings", InputConstants.Type.KEYSYM, InputConstants.UNKNOWN.getValue(), "key.categories.feurmod"));

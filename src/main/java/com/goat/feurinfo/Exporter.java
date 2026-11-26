@@ -35,7 +35,14 @@ final class Exporter {
 
     /** Le fichier écrit, ou null si le type n'existe pas. */
     static Path export(String typeQuery) throws Exception {
-        String q = SpeciesLookup.normalize(typeQuery);
+        return export(List.of(typeQuery));
+    }
+
+    /** Les Pokémon qui ont tous ces types (un ou deux). */
+    static Path export(Collection<String> typeQueries) throws Exception {
+        List<String> wanted = new ArrayList<>();
+        for (String t : typeQueries) wanted.add(SpeciesLookup.normalize(t));
+        if (wanted.isEmpty()) return null;
         StringBuilder sb = new StringBuilder("﻿"); // BOM : Excel lit les accents
         sb.append(String.join(";", "N°", "Pokémon", "Forme", "Catégorie", "Type 1", "Type 2", "Talent 1", "Talent 2", "Talent caché",
                 "PV", "Atq", "Déf", "Atq.Spé", "Déf.Spé", "Vit", "Total",
@@ -49,13 +56,14 @@ final class Exporter {
             Set<String> seen = new HashSet<>();
             for (FormData f : forms) {
                 List<String> types = new ArrayList<>();
-                boolean match = false;
+                Set<String> has = new HashSet<>();
                 for (ElementalType t : f.getTypes()) {
                     String shown = t.getDisplayName().getString();
                     types.add(shown);
-                    match |= SpeciesLookup.normalize(t.getName()).equals(q) || SpeciesLookup.normalize(shown).equals(q);
+                    has.add(SpeciesLookup.normalize(t.getName()));
+                    has.add(SpeciesLookup.normalize(shown));
                 }
-                if (!match) continue;
+                if (!has.containsAll(wanted)) continue;
 
                 List<String> normal = new ArrayList<>();
                 String hidden = "";
@@ -99,7 +107,7 @@ final class Exporter {
         }
         if (rows == 0) return null;
         Path file = Minecraft.getInstance().gameDirectory.toPath().resolve("config")
-                .resolve("feurwiki-" + q.replaceAll("[^a-z0-9]", "") + ".csv");
+                .resolve("feurwiki-" + String.join("-", wanted).replaceAll("[^a-z0-9-]", "") + ".csv");
         Files.createDirectories(file.getParent());
         Files.writeString(file, sb.toString(), StandardCharsets.UTF_8);
         return file;

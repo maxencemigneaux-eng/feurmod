@@ -181,7 +181,10 @@ public final class TextCapture {
 
     /** Associe chaque timer au texte placé juste au-dessus (le nom de la zone). */
     static Map<String, Long> findTimers(List<Entry> entries) {
-        FeurlegConfig cfg = FeurlegConfig.get();
+        return findTimers(entries, FeurlegConfig.get());
+    }
+
+    static Map<String, Long> findTimers(List<Entry> entries, FeurlegConfig cfg) {
         List<Entry> timers = new ArrayList<>();
         List<Entry> labels = new ArrayList<>();
         for (Entry e : entries) {

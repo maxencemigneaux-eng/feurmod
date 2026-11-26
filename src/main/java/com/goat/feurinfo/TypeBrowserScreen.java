@@ -75,10 +75,39 @@ public final class TypeBrowserScreen extends Screen {
         Component back = Component.literal("Retour");
         int bw = font.width(back) + 12;
         addRenderableWidget(new FlatButton(width - MARGIN - 16 - 4 - bw, 7, bw, 16, back, this::onClose));
+        Component export = Component.literal("Export Excel");
+        int ew = font.width(export) + 12;
+        addRenderableWidget(new FlatButton(width - MARGIN - 16 - 4 - bw - 4 - ew, 7, ew, 16, export, this::exportSelected));
         refilter();
     }
 
     /** Toutes les espèces, et leurs formes qui n'ont pas les mêmes types (Alola, Galar...). */
+    /** La fiche .csv des types choisis (types, talents, stats, attaques), ouverte tout de suite. */
+    private void exportSelected() {
+        net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
+        if (selected.isEmpty()) {
+            toast(mc, "Choisis d'abord un ou deux types", "");
+            return;
+        }
+        try {
+            java.nio.file.Path file = Exporter.export(selected);
+            if (file == null) {
+                toast(mc, "Aucun Pokémon de type " + typeNames(), "");
+                return;
+            }
+            toast(mc, "Fiche écrite", "config/" + file.getFileName());
+            net.minecraft.Util.getPlatform().openFile(file.toFile());
+        } catch (Exception e) {
+            toast(mc, "Export impossible", String.valueOf(e.getMessage()));
+        }
+    }
+
+    private static void toast(net.minecraft.client.Minecraft mc, String title, String body) {
+        net.minecraft.client.gui.components.toasts.SystemToast.add(mc.getToasts(),
+                net.minecraft.client.gui.components.toasts.SystemToast.SystemToastId.PERIODIC_NOTIFICATION,
+                Component.literal(title), body.isEmpty() ? null : Component.literal(body));
+    }
+
     private void build() {
         all = new ArrayList<>();
         for (Species sp : SpeciesLookup.all()) {
