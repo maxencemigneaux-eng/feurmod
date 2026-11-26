@@ -44,7 +44,9 @@ public final class ZonePeriods {
     public record Prediction(Long tick, String word, boolean approx, boolean night) {}
 
     private static final Gson GSON = new GsonBuilder().create();
-    private static final Path FILE = FabricLoader.getInstance().getConfigDir().resolve("feurleg-periods2.json");
+    private static Path file() {
+        return FabricLoader.getInstance().getConfigDir().resolve("feurleg-periods2.json");
+    }
     private static final Type FILE_TYPE = new TypeToken<LinkedHashMap<String, LinkedHashMap<String, State>>>() {}.getType();
 
     private static Map<String, State> states = new LinkedHashMap<>();
@@ -231,8 +233,8 @@ public final class ZonePeriods {
         Map<String, LinkedHashMap<String, State>> all = readFile();
         all.put(serverKey, new LinkedHashMap<>(states));
         try {
-            Files.createDirectories(FILE.getParent());
-            Files.writeString(FILE, GSON.toJson(all, FILE_TYPE), StandardCharsets.UTF_8);
+            Files.createDirectories(file().getParent());
+            Files.writeString(file(), GSON.toJson(all, FILE_TYPE), StandardCharsets.UTF_8);
         } catch (Exception e) {
             FeurlegClient.LOGGER.warn("Impossible d'enregistrer feurleg-periods.json", e);
         }
@@ -244,8 +246,8 @@ public final class ZonePeriods {
 
     private static Map<String, LinkedHashMap<String, State>> readFile() {
         try {
-            if (Files.exists(FILE)) {
-                Map<String, LinkedHashMap<String, State>> m = GSON.fromJson(Files.readString(FILE, StandardCharsets.UTF_8), FILE_TYPE);
+            if (Files.exists(file())) {
+                Map<String, LinkedHashMap<String, State>> m = GSON.fromJson(Files.readString(file(), StandardCharsets.UTF_8), FILE_TYPE);
                 if (m != null) return m;
             }
         } catch (Exception e) {
