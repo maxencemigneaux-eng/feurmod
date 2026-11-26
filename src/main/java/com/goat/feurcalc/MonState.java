@@ -356,6 +356,10 @@ public final class MonState {
         setAuto = false;
     }
 
+    static boolean isMegaForm(@Nullable FormData form) {
+        return form != null && form.getName().toLowerCase(java.util.Locale.ROOT).contains("mega");
+    }
+
     public static String firstType(@Nullable FormData form) {
         if (form == null) {
             return "normal";
@@ -566,6 +570,9 @@ public final class MonState {
         }
         if (base.size() == 6) {
             o.add("baseStats", base);
+        }
+        if (com.goat.feurmod.FeurmodConfig.get().officialMegaStats && isMegaForm(form)) {
+            o.addProperty("preferShowdown", true); // stats officielles si Showdown connaît cette Méga
         }
         JsonArray types = new JsonArray();
         for (String type : Names.formTypes(form)) {

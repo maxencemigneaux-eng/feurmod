@@ -24,6 +24,8 @@ public final class FeurmodConfig {
     public int accent = 0;
     /** Calculateur : mettre tous les Pokémon au niveau 100 (sinon leur vrai niveau). Toujours modifiable à la main. */
     public boolean calcLevel100 = true;
+    /** Méga connues de Showdown : stats officielles plutôt que celles de l'addon du serveur. */
+    public boolean officialMegaStats = true;
     /** Opacité du fond des menus, en % (40 à 100). */
     public int panelOpacity = 100;
     /** À la connexion, prévenir dans le chat s'il y a une nouvelle version du mod. */

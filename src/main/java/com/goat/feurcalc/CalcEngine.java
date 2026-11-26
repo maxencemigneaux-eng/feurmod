@@ -48,6 +48,7 @@ public final class CalcEngine {
     private static Value calcFunction;
     private static Value matchupsFunction;
     private static Value pasteFunction;
+    private static Value megaCheckFunction;
 
     private CalcEngine() {
     }
@@ -100,6 +101,7 @@ public final class CalcEngine {
             calcFunction = api.getMember("calc");
             matchupsFunction = api.getMember("matchups");
             pasteFunction = api.getMember("paste");
+            megaCheckFunction = api.getMember("megaCheck");
 
             JsonObject lists = JsonParser.parseString(api.getMember("lists").execute().asString()).getAsJsonObject();
             knownItems = toSet(lists.getAsJsonArray("items"));
@@ -138,6 +140,11 @@ public final class CalcEngine {
     /** L'équipe au format Showdown / PokePaste : {"text": ...}. */
     public static CompletableFuture<JsonObject> paste(String requestJson) {
         return call(() -> pasteFunction, requestJson);
+    }
+
+    /** Les Méga du serveur comparées à Showdown : {"diff": [...], "unknown": [...], "same": n}. */
+    public static CompletableFuture<JsonObject> megaCheck(String requestJson) {
+        return call(() -> megaCheckFunction, requestJson);
     }
 
     private static CompletableFuture<JsonObject> call(java.util.function.Supplier<Value> function, String requestJson) {

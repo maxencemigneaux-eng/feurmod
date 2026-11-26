@@ -73,7 +73,8 @@ function makePokemon(p) {
   }
   const known = gen.species.get(toID(p.species));
   const overrides = {};
-  if (p.baseStats) overrides.baseStats = statTable(p.baseStats, 50);
+  // Méga : les stats officielles de Showdown passent avant celles de l'addon du serveur (si l'option est cochée)
+  if (p.baseStats && !(p.preferShowdown && known)) overrides.baseStats = statTable(p.baseStats, 50);
   if (p.weightkg) overrides.weightkg = Number(p.weightkg);
   if (!known) {
     overrides.name = p.name || p.species;
@@ -193,6 +194,7 @@ function summary(mon, field, side) {
   return {
     name: mon.name,
     stats: Object.assign({}, mon.rawStats),
+    base: Object.assign({}, mon.species.baseStats),
     maxHP: mon.maxHP(),
     curHP: mon.curHP(),
     speed,
@@ -353,10 +355,27 @@ function paste(json) {
   return JSON.stringify({ text: blocks.join('\n\n') + '\n' });
 }
 
+// /feurcalc megas : les Méga du serveur comparées à Showdown. Entrée [{name, id, stats}], sortie {diff, unknown, same}.
+function megaCheck(json) {
+  const list = typeof json === 'string' ? JSON.parse(json) : json;
+  const out = { diff: [], unknown: [], same: 0 };
+  for (const m of list) {
+    const sp = gen.species.get(toID(m.id));
+    if (!sp) { out.unknown.push(m.name); continue; }
+    const official = sp.baseStats;
+    if (STATS.some((s) => Number(m.stats[s]) !== official[s])) {
+      out.diff.push({ name: m.name, showdown: sp.name, server: m.stats, official: Object.assign({}, official) });
+    } else {
+      out.same++;
+    }
+  }
+  return JSON.stringify(out);
+}
+
 function safe(fn) {
   return function (arg) {
     try { return fn(arg); } catch (e) { return JSON.stringify({ error: String(e && e.stack || e) }); }
   };
 }
 
-globalThis.feurcalc = { calc: safe(calc), matchups: safe(matchups), lists: safe(lists), paste: safe(paste), version: '0.12.0' };
+globalThis.feurcalc = { calc: safe(calc), matchups: safe(matchups), lists: safe(lists), paste: safe(paste), megaCheck: safe(megaCheck), version: '0.12.0' };

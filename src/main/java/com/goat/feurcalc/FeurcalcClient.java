@@ -124,6 +124,10 @@ public final class FeurcalcClient implements ClientModInitializer {
                     client.tell(() -> openScreen(client, null));
                     return 1;
                 })
+                .then(ClientCommandManager.literal("megas").executes(context -> {
+                    MegaCheck.run();
+                    return 1;
+                }))
                 .then(ClientCommandManager.argument("pokemon", StringArgumentType.greedyString())
                         .suggests(FeurcalcClient::suggestSpecies)
                         .executes(context -> {

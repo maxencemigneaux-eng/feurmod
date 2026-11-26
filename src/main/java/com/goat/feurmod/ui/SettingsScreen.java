@@ -69,7 +69,10 @@ public final class SettingsScreen extends Screen {
         sections.add(new Section("Calculateur de dégâts", List.of(
             toggle("Tous les Pokémon au niveau 100", () -> fm.calcLevel100, v -> fm.calcLevel100 = v,
                 "Oui : chaque Pokémon arrive au niv. 100 dans le calculateur (tu peux toujours baisser le niveau à la main). "
-                    + "Non : son vrai niveau.", FeurmodConfig::save))));
+                    + "Non : son vrai niveau.", FeurmodConfig::save),
+            toggle("Stats officielles des Méga", () -> fm.officialMegaStats, v -> fm.officialMegaStats = v,
+                "Oui : les Méga connues de Showdown (dont celles de Légendes Z-A) prennent leurs stats officielles. "
+                    + "Non : les stats de l'addon du serveur. /feurcalc megas liste les différences.", FeurmodConfig::save))));
 
         UndoConfig undo = UndoConfig.get();
         sections.add(new Section("Combat : Annuler / Envoyer", List.of(

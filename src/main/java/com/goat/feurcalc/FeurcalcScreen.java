@@ -1428,7 +1428,9 @@ public final class FeurcalcScreen extends Screen {
             int nat = Names.natureModifier(m.nature, i);
             String label = Names.statLabel(i) + (nat > 0 ? "+" : nat < 0 ? "−" : "");
             text(label, l.x, rty, nat > 0 ? C_PLUS : nat < 0 ? C_MINUS : C_LABEL);
-            Integer b = base.get(Names.STATS[i]);
+            JsonObject used = summary != null && summary.has("base") ? summary.getAsJsonObject("base") : null;
+            Integer b = used != null && used.has(Names.STAT_IDS[i]) ? Integer.valueOf(used.get(Names.STAT_IDS[i]).getAsInt())
+                    : base.get(Names.STATS[i]);
             textRight(b == null ? "?" : String.valueOf(b), l.x + colBaseRight, rty, b == null ? C_DIM : Theme.statColor(b));
 
             if (stats != null && stats.has(Names.STAT_IDS[i])) {

@@ -49,4 +49,26 @@ test('export PokePaste au format Showdown', () => {
     'Hodon @ Mega Stone', 'Ability: Terre Finale', 'Calm Nature', '- Custom Move', ''].join('\n'));
 });
 
+test('Méga : stats officielles si demandé, sinon celles du serveur', () => {
+  const serveur = { hp: 60, atk: 90, def: 70, spa: 140, spd: 80, spe: 145 };
+  const raichu = { species: 'raichumegay', level: 100, nature: 'timid', ability: 'noability', evs: { spa: 252, spe: 252 },
+    baseStats: serveur, moves: ['thunderbolt'] };
+  const off = call(api.calc, { a: Object.assign({}, raichu, { preferShowdown: true }), b: ninetales, field: { a: {}, b: {} } }).a;
+  assert.equal(off.base.spa, 160);
+  assert.equal(off.base.spe, 130);
+  const srv = call(api.calc, { a: raichu, b: ninetales, field: { a: {}, b: {} } }).a;
+  assert.equal(srv.base.spa, 140);
+});
+
+test('/feurcalc megas repère les Méga aux stats différentes', () => {
+  const out = call(api.megaCheck, [
+    { name: 'Raichu (Mega-Y)', id: 'raichumegay', stats: { hp: 60, atk: 90, def: 70, spa: 140, spd: 80, spe: 145 } },
+    { name: 'Raichu (Mega-X)', id: 'raichumegax', stats: { hp: 60, atk: 135, def: 95, spa: 90, spd: 95, spe: 110 } },
+    { name: 'Hodon (Mega)', id: 'hodonmega', stats: { hp: 1, atk: 1, def: 1, spa: 1, spd: 1, spe: 1 } },
+  ]);
+  assert.deepEqual(out.diff.map((d) => d.showdown), ['Raichu-Mega-Y']);
+  assert.equal(out.same, 1);
+  assert.deepEqual(out.unknown, ['Hodon (Mega)']);
+});
+
 console.log(`${ok} test(s) réussi(s)`);
