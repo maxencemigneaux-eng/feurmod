@@ -79,18 +79,27 @@ public final class SettingsScreen extends Screen {
                 UndoConfig::save))));
 
         FeurlegConfig leg = FeurlegConfig.get();
-        sections.add(new Section("Timers des légendaires", List.of(
+        sections.add(new Section("Timers des légendaires (FeurHUD)", List.of(
             toggle("Afficher les timers", () -> leg.enabled, v -> leg.enabled = v, "Aussi avec la touche K", FeurlegConfig::save),
             new Option("Coin de l'écran", () -> CORNER_LABELS[cornerIndex(leg.corner)],
                 () -> { leg.corner = CORNERS[Math.floorMod(cornerIndex(leg.corner) + 1, 4)]; FeurlegConfig.save(); },
                 () -> { leg.corner = CORNERS[Math.floorMod(cornerIndex(leg.corner) - 1, 4)]; FeurlegConfig.save(); },
                 "Où afficher le panneau", () -> true),
+            new Option("Fond du panneau", () -> BG_LABELS[bgIndex(leg.hudBackgroundAlpha)],
+                () -> { leg.hudBackgroundAlpha = BG_ALPHAS[Math.floorMod(bgIndex(leg.hudBackgroundAlpha) + 1, BG_ALPHAS.length)]; FeurlegConfig.save(); },
+                () -> { leg.hudBackgroundAlpha = BG_ALPHAS[Math.floorMod(bgIndex(leg.hudBackgroundAlpha) - 1, BG_ALPHAS.length)]; FeurlegConfig.save(); },
+                "Aucun = juste le texte (comme Legend HUD), sinon un fond sombre derrière", () -> true),
+            new Option("Noms des mondes", () -> "construction".equals(leg.zoneNames) ? "Construction01, 02, 03" : "Johto, Hoenn, Unys",
+                () -> { leg.zoneNames = "construction".equals(leg.zoneNames) ? "regions" : "construction"; FeurlegConfig.save(); },
+                () -> { leg.zoneNames = "construction".equals(leg.zoneNames) ? "regions" : "construction"; FeurlegConfig.save(); },
+                "Johto = Construction01, Hoenn = Construction02, Unys = Construction03 (les Ressources restent Ressources01, 02, 03)",
+                () -> true),
             new Option("Taille", () -> Math.round(leg.scale * 100) + " %",
                 () -> { leg.scale = leg.scale >= 2f ? 0.5f : leg.scale + 0.25f; FeurlegConfig.save(); },
                 () -> { leg.scale = leg.scale <= 0.5f ? 2f : leg.scale - 0.25f; FeurlegConfig.save(); },
                 "Taille du panneau (50 à 200 %)", () -> true),
             toggle("Heure Minecraft du spawn", () -> leg.showMinecraftTime, v -> leg.showMinecraftTime = v,
-                "L'heure en jeu à laquelle le légendaire tombera, avec le moment (aube, nuit...)", FeurlegConfig::save),
+                "L'heure en jeu à laquelle le légendaire tombera, entre crochets. Calculée une fois puis figée.", FeurlegConfig::save),
             toggle("Compte à rebours", () -> leg.showCountdown, v -> leg.showCountdown = v,
                 "Le temps réel restant avant la tentative de spawn", FeurlegConfig::save),
             new Option("Prévenir avant", () -> leg.warnSeconds <= 0 ? "Jamais" : leg.warnSeconds < 60 ? leg.warnSeconds + " s" : (leg.warnSeconds / 60) + " min",
@@ -174,6 +183,17 @@ public final class SettingsScreen extends Screen {
     private static void themeChanged() {
         FeurmodConfig.apply();
         FeurmodConfig.save();
+    }
+
+    private static final int[] BG_ALPHAS = {0, 80, 150, 220};
+    private static final String[] BG_LABELS = {"Aucun", "Léger", "Moyen", "Foncé"};
+
+    private static int bgIndex(int alpha) {
+        int best = 0;
+        for (int i = 0; i < BG_ALPHAS.length; i++) {
+            if (Math.abs(BG_ALPHAS[i] - alpha) < Math.abs(BG_ALPHAS[best] - alpha)) best = i;
+        }
+        return best;
     }
 
     private static int cornerIndex(String corner) {

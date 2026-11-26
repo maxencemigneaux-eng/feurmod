@@ -25,18 +25,20 @@ public final class FeurlegConfig {
     public int offsetY = 4;
     /** Taille du HUD (1.0 = normal). */
     public float scale = 1.0f;
-    /** Opacité du fond (0 = transparent, 255 = opaque). */
-    public int backgroundAlpha = 150;
+    /**
+     * Opacité du fond du FeurHUD (0 = pas de fond, juste le texte ; 255 = opaque). Nouveau nom de réglage : l'ancien
+     * "backgroundAlpha" (fond sombre par défaut) est ignoré, donc tout le monde repart sans fond.
+     */
+    public int hudBackgroundAlpha = 0;
+    /** Noms des 3 premiers mondes : "regions" = Johto / Hoenn / Unys, "construction" = Construction01 / 02 / 03. */
+    public String zoneNames = "regions";
 
     /** Afficher l'heure Minecraft du spawn (ex. "21:30"). */
     public boolean showMinecraftTime = true;
     /** Afficher le compte à rebours (ex. "25:50"). */
     public boolean showCountdown = true;
 
-    /** Couleurs du compte à rebours selon les minutes restantes. */
-    public int colorBlueFromMinutes = 10;
-    public int colorPurpleUnderMinutes = 5;
-    public int colorRedUnderMinutes = 2;
+    // Couleurs du compte à rebours : fixes (vert > 10 min, jaune jusqu'à 5:01, orange jusqu'à 0:31, rouge ensuite)
 
     /** Moments de la journée affichés par /leg -> plages de ticks (tick 0 = 6:00). */
     public java.util.Map<String, String> periods = ZonePeriods.defaultTable();

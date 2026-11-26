@@ -17,12 +17,45 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public final class TeamMatchups {
     public record Row(Pokemon pokemon, MonState mon, boolean active, boolean fainted,
-                      @Nullable JsonObject mine, @Nullable JsonObject theirs, int speed) {
-        /** Note "à envoyer" : ce que tu fais moins ce que tu prends (+ bonus si tu es plus rapide). */
-        public double score(int foeSpeed) {
-            double dealt = Math.min(100, CalcState.getDouble(mine, "maxPct", 0));
-            double taken = Math.min(100, CalcState.getDouble(theirs, "maxPct", 0));
-            return dealt - taken + (speed > foeSpeed ? 15 : 0);
+                      @Nullable JsonObject mine, @Nullable JsonObject theirs, int speed, double hazardPct) {
+
+        /**
+         * Qui frappe en premier avec la meilleure attaque de chacun : &gt; 0 toi, &lt; 0 lui, 0 égalité.
+         * La priorité (Coup Bas, Vitesse Extrême...) passe avant la vitesse, et Distorsion inverse la vitesse.
+         */
+        public int movesFirst(FieldState field, int foeSpeed) {
+            return field.whoMovesFirst(CalcState.getInt(mine, "priority", 0), speed,
+                    CalcState.getInt(theirs, "priority", 0), foeSpeed);
+        }
+
+        /**
+         * Note "à envoyer". Il entre en prenant les pièges puis un coup de l'adversaire (le switch prend le tour) ;
+         * ensuite : dégâts faits − dégâts pris, gros bonus s'il frappe en premier avec une chance de K.O.,
+         * gros malus s'il tombe avant d'avoir pu jouer.
+         */
+        public double score(FieldState field, int foeSpeed) {
+            double hp = mon.hpPercent - hazardPct;
+            if (hp <= 0) {
+                return -1000; // K.O. par les pièges en entrant
+            }
+            double dealt = Math.min(100, avg(mine));
+            double taken = Math.min(100, avg(theirs));
+            double score = dealt - Math.min(hp, taken) - hazardPct;
+            if (hp - taken <= 0) {
+                return score - 60; // il ne survit pas au coup reçu en entrant
+            }
+            int first = movesFirst(field, foeSpeed);
+            double koChance = CalcState.getInt(mine, "koN", 0) == 1 ? CalcState.getDouble(mine, "koChance", 0) : 0;
+            if (first > 0) {
+                score += 10 + 40 * koChance;
+            } else if (first == 0) {
+                score += 20 * koChance;
+            }
+            return score;
+        }
+
+        private static double avg(@Nullable JsonObject r) {
+            return (CalcState.getDouble(r, "minPct", 0) + CalcState.getDouble(r, "maxPct", 0)) / 2;
         }
     }
 
@@ -75,7 +108,7 @@ public final class TeamMatchups {
             if (row.active() || row.fainted() || row.mine() == null) {
                 continue;
             }
-            double score = row.score(foeSpeed);
+            double score = row.score(CalcState.INSTANCE.field, foeSpeed);
             if (score > bestScore) {
                 bestScore = score;
                 best = i;
@@ -97,6 +130,13 @@ public final class TeamMatchups {
         JsonArray list = new JsonArray();
         for (Pokemon pokemon : team) {
             MonState m = MonState.fromPokemon(pokemon);
+            if (state.inBattle) {
+                BattleLog.overlay(m); // objet utilisé / perdu, Téra déjà utilisée pendant ce combat
+                m.alliesFainted = BattleLog.faintedAllies(true, m.uuid);
+                if (m.uuid != null && m.uuid.equals(state.a.uuid)) {
+                    m.copyFrom(state.a); // celui en jeu : avec ses boosts, Paléosynthèse, PV du moment...
+                }
+            }
             mons.add(m);
             active.add(state.isActive(m.uuid));
             list.add(m.toRequest());
@@ -133,7 +173,8 @@ public final class TeamMatchups {
                 JsonObject row = i < out.size() && out.get(i).isJsonObject() ? out.get(i).getAsJsonObject() : new JsonObject();
                 MonState m = mons.get(i);
                 result.add(new Row(members.get(i), m, active.get(i), m.hpPercent <= 0, object(row, "mine"),
-                        object(row, "theirs"), CalcState.getInt(row, "speed", 0)));
+                        object(row, "theirs"), CalcState.getInt(row, "speed", 0),
+                        active.get(i) ? 0 : CalcState.getDouble(row, "hazardPct", 0)));
             }
             foeSpeed = CalcState.getInt(r, "foeSpeed", 0);
             foeName = name;

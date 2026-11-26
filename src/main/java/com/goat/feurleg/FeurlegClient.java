@@ -67,9 +67,10 @@ public final class FeurlegClient implements ClientModInitializer {
             FeurlegConfig.save();
             if (client.player != null) {
                 client.player.displayClientMessage(Component.literal(cfg.enabled
-                    ? "§6[Feurleg]§r Timers affichés" : "§6[Feurleg]§r Timers cachés"), true);
+                    ? "§c[FeurHUD]§r Timers affichés" : "§c[FeurHUD]§r Timers cachés"), true);
             }
         }
+        TickClock.tick(client);
         if (client.player == null) return;
         ZoneClock.tick(client);
         ZonePeriods.tickSave();
@@ -78,12 +79,12 @@ public final class FeurlegClient implements ClientModInitializer {
             long left = t.remainingMillis();
             if (cfg.warnSeconds > 0 && !t.warned && left <= cfg.warnSeconds * 1000L && left > 0) {
                 t.warned = true;
-                alert(client, "§e" + t.name, "§fLégendaire dans " + TimerHud.format(left) + " !", 1.2f);
+                alert(client, "§e" + TimerHud.displayName(t.name, FeurlegConfig.get()), "§fLégendaire dans " + TimerHud.format(left) + " !", 1.2f);
             }
             if (!t.alerted && left <= 0) {
                 t.alerted = true;
                 t.warned = true;
-                alert(client, "§a" + t.name, "§fTentative de spawn légendaire !", 1.5f);
+                alert(client, "§a" + TimerHud.displayName(t.name, FeurlegConfig.get()), "§fTentative de spawn légendaire !", 1.5f);
             }
         }
     }

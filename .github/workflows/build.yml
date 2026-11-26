@@ -53,10 +53,10 @@ jobs:
           echo "Version utilisée : $V"
           echo "version=$V" >> "$GITHUB_OUTPUT"
 
-      - name: Numéro de version (1.0.1, 1.0.2... un nouveau à chaque compilation)
+      - name: Numéro de version (un nouveau à chaque compilation)
         id: version
         run: |
-          V="1.0.$(( ${{ github.run_number }} - 4 ))"
+          V="1.0.$(( ${{ github.run_number }} + 3 ))" # suite du zip 1.0.52 : essai n°50 → 1.0.53
           echo "Version du mod : $V"
           echo "version=$V" >> "$GITHUB_OUTPUT"
 

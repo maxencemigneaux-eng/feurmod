@@ -35,6 +35,14 @@ public final class TextCapture {
     private static boolean capturing = false;
     private static final List<Entry> frame = new ArrayList<>();
 
+    // HUD (hors menus) : une image sur 10, pour y lire le nom du monde où se trouve le joueur
+    private static boolean hudCapturing = false;
+    private static int hudFrameCounter;
+    private static int hudMisses;
+    /** Mis à true pendant que le FeurHUD se dessine : ses propres noms de zones ne comptent pas. */
+    public static boolean hudSuppressed = false;
+    private static final List<Entry> hudFrame = new ArrayList<>();
+
     private static Screen lastScreen = null;
     private static boolean autoDumpedThisScreen = false;
     private static boolean dumpRequested = false;
@@ -43,6 +51,75 @@ public final class TextCapture {
 
     public static boolean isCapturing() {
         return capturing;
+    }
+
+    /** Un texte dessiné maintenant doit-il être noté (menu ouvert, ou image du HUD analysée) ? */
+    public static boolean isRecording() {
+        return capturing || (hudCapturing && !hudSuppressed);
+    }
+
+    public static void beginHud() {
+        hudCapturing = !capturing && ++hudFrameCounter % 10 == 0 && !TimerStore.get().isEmpty();
+        hudFrame.clear();
+    }
+
+    /**
+     * Le serveur affiche le nom du monde où tu es en haut de l'écran (ex. « Ressources-02 »). Si un texte du HUD est
+     * le nom d'une zone de /leg, c'est la zone actuelle : son heure devient exacte et sa ligne passe en gras.
+     * Le texte le plus haut gagne, et le chat (moitié basse de l'écran) est ignoré.
+     */
+    public static void endHud() {
+        if (!hudCapturing) return;
+        hudCapturing = false;
+        String found = null;
+        float foundY = Float.MAX_VALUE;
+        java.util.Map<String, String> zones = new java.util.HashMap<>();
+        for (TimerStore.Timer t : TimerStore.get().list()) {
+            zones.put(zoneKey(t.name), t.name);
+        }
+        // Seulement la moitié haute de l'écran : le chat (en bas) peut citer une zone sans que tu y sois
+        float half = Minecraft.getInstance().getWindow().getGuiScaledHeight() / 2f;
+        for (Entry e : hudFrame) {
+            if (e.y() > half) continue;
+            String zone = zoneIn(e.text(), zones);
+            if (zone != null && e.y() < foundY) {
+                found = zone;
+                foundY = e.y();
+            }
+        }
+        hudFrame.clear();
+        if (found != null) {
+            hudMisses = 0;
+            ZoneClock.onHudZone(found);
+        } else if (++hudMisses == 5) {
+            ZoneClock.onHudZone(null); // plus de nom de zone affiché depuis 5 s : hors des zones à légendaires
+        }
+    }
+
+    /** "Ressources-02", "Ressources 2", "ressources02" → "ressources2" ; Construction01..03 = Johto, Hoenn, Unys. */
+    static String zoneKey(String s) {
+        String t = s.toLowerCase(java.util.Locale.ROOT).replaceAll("[^a-z0-9]", "");
+        Matcher m = Pattern.compile("^([a-z]+)0*(\\d+)$").matcher(t);
+        if (m.matches()) {
+            t = m.group(1) + m.group(2);
+        }
+        switch (t) {
+            case "construction1": return "johto";
+            case "construction2": return "hoenn";
+            case "construction3": return "unys";
+            default: return t;
+        }
+    }
+
+    /** La zone nommée dans ce texte (un mot, ou deux mots qui se suivent comme « Ressources 2 »), sinon null. */
+    private static String zoneIn(String text, java.util.Map<String, String> zones) {
+        String[] words = text.trim().split("\\s+");
+        for (int i = 0; i < words.length; i++) {
+            String z = zones.get(zoneKey(words[i]));
+            if (z == null && i + 1 < words.length) z = zones.get(zoneKey(words[i] + words[i + 1]));
+            if (z != null && !zoneKey(words[i]).isEmpty()) return z;
+        }
+        return null;
     }
 
     public static void requestDump() {
@@ -63,7 +140,7 @@ public final class TextCapture {
         if (text.isEmpty()) return;
         Vector3f pos = matrix.transformPosition(x, y, 0f, new Vector3f());
         float scale = Math.abs(matrix.m00());
-        frame.add(new Entry(text, pos.x, pos.y, scale));
+        (capturing ? frame : hudFrame).add(new Entry(text, pos.x, pos.y, scale));
     }
 
     public static void end(Screen screen) {

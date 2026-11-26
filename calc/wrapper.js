@@ -1,6 +1,6 @@
 // Feurcalc : petit pont JSON <-> @smogon/calc (le calculateur de Showdown / Showdex)
 import { calculate, Generations, Pokemon, Move, Field, Side, toID } from '@smogon/calc';
-import { getFinalSpeed } from '@smogon/calc/dist/mechanics/util';
+import { getFinalSpeed, getQPBoostedStat, isGrounded } from '@smogon/calc/dist/mechanics/util';
 
 const gen = Generations.get(9);
 const STATS = ['hp', 'atk', 'def', 'spa', 'spd', 'spe'];
@@ -93,6 +93,10 @@ function makePokemon(p) {
     evs: statTable(p.evs, 0),
     boosts: statTable(p.boosts, 0),
     status: p.status || '',
+    // Toxik : multiplicateur des prochains dégâts (1 = 1/16, 2 = 2/16...), compté par le mod pendant le combat
+    toxicCounter: Math.max(0, Number(p.toxicCounter) || 0),
+    // Alliés K.O. : Suprématie (Scalpereur) et Dernier Hommage
+    alliesFainted: Math.max(0, Math.min(100, Number(p.alliesFainted) || 0)),
     overrides,
   };
   if (p.tera && p.teraType) opts.teraType = cap(p.teraType);
@@ -100,6 +104,12 @@ function makePokemon(p) {
   // Champ Électrifié / avec l'Énergie Booster). 'auto' = la meilleure stat, comme dans le jeu.
   opts.boostedStat = 'auto';
   const mon = new Pokemon(gen, known ? known.name : (p.name || p.species), opts);
+  // Paléosynthèse / Charge Quantique déjà activée en combat (Énergie Booster consommée, soleil ou champ parti...) :
+  // une stat fixée force le boost, même sans objet. On prend celle annoncée par le combat, sinon la meilleure.
+  if (p.paradox != null && p.paradox !== false) {
+    const st = String(p.paradox);
+    mon.boostedStat = ['atk', 'def', 'spa', 'spd', 'spe'].includes(st) ? st : getQPBoostedStat(mon, gen);
+  }
   // Types donnés par Cobblemon (formes / datapacks) : remplacés après coup
   if (p.types && p.types.length) {
     const t = p.types.map(cap).filter(Boolean);
@@ -108,9 +118,15 @@ function makePokemon(p) {
       mon.types = t;
     }
   }
-  if (p.hpPercent != null) {
-    const max = mon.maxHP();
-    mon.originalCurHP = Math.max(1, Math.min(max, Math.round(max * Number(p.hpPercent) / 100)));
+  const max = mon.maxHP();
+  // PV exacts (fraction envoyée par le combat) en priorité, sinon le % affiché. Jamais "PV pleins" par arrondi :
+  // Multiécaille, Spectro-Bouclier, Fermeté et la Ceinture Force ne marchent qu'à PV vraiment pleins.
+  const ratio = p.hpRatio != null && Number(p.hpRatio) >= 0 ? Number(p.hpRatio)
+    : (p.hpPercent != null ? Number(p.hpPercent) / 100 : 1);
+  if (!(ratio >= 1)) {
+    mon.originalCurHP = Math.max(1, Math.min(max - 1, Math.round(max * ratio)));
+  } else {
+    mon.originalCurHP = max;
   }
   return mon;
 }
@@ -128,15 +144,21 @@ function moveResults(attacker, defender, moves, field, crit, useZ) {
     r.category = data.category;
     r.type = data.type;
     r.bp = data.basePower;
+    r.priority = data.priority || 0;
     if (data.category === 'Status') continue;
     try {
-      const move = new Move(gen, data.name, {
+      const opts = {
         isCrit: !!crit,
         useZ: !!useZ, // capacités Z (bouton Z du calculateur)
         species: attacker.name,
         ability: attacker.ability,
         item: attacker.item,
-      });
+      };
+      // Dernier Hommage : 50 de puissance + 50 par allié K.O. (@smogon/calc ne le compte pas tout seul)
+      if (data.name === 'Last Respects' && attacker.alliesFainted) {
+        opts.overrides = { basePower: 50 + 50 * attacker.alliesFainted };
+      }
+      const move = new Move(gen, data.name, opts);
       const res = calculate(gen, attacker, defender, move, field);
       if (useZ && move.name !== data.name) r.zName = move.name;
       const [min, max] = res.range();
@@ -225,6 +247,35 @@ function bestOf(list) {
   return best;
 }
 
+// L'attaque prioritaire offensive la plus forte (Coup Bas, Vitesse Extrême...) : sa priorité, ou 0
+function bestPriority(list) {
+  let p = 0;
+  for (const r of list) {
+    if (r.known && r.category !== 'Status' && r.max > 0 && r.priority > p) p = r.priority;
+  }
+  return p;
+}
+
+// Ce que les pièges au sol enlèvent (en % des PV max) à un Pokémon qui entre de ce côté
+function entryHazardPct(mon, side, field) {
+  if (mon.hasItem('Heavy-Duty Boots') || mon.hasAbility('Magic Guard')) return 0;
+  let pct = 0;
+  if (side.isSR) {
+    const rock = gen.types.get(toID('Rock'));
+    const types = mon.teraType && mon.teraType !== 'Stellar' ? [mon.teraType] : mon.types;
+    let eff = 1;
+    for (const t of types) {
+      const e = rock && rock.effectiveness ? rock.effectiveness[t] : undefined;
+      eff *= e == null ? 1 : e;
+    }
+    pct += 12.5 * eff;
+  }
+  if (side.spikes > 0 && isGrounded(mon, field)) {
+    pct += [0, 100 / 8, 100 / 6, 100 / 4][Math.min(3, side.spikes)];
+  }
+  return Math.round(pct * 10) / 10;
+}
+
 // "Qui envoyer ?" : pour chaque Pokémon de ton équipe, sa meilleure attaque contre l'adversaire
 // et la meilleure attaque de l'adversaire contre lui.
 function matchups(json) {
@@ -238,8 +289,13 @@ function matchups(json) {
     const row = {};
     try {
       const mon = makePokemon(t);
-      row.mine = bestOf(moveResults(mon, foe, t.moves, fl.ab, false));
-      row.theirs = bestOf(moveResults(foe, mon, q.foe.moves, fl.ba, false));
+      const mineAll = moveResults(mon, foe, t.moves, fl.ab, false);
+      const theirsAll = moveResults(foe, mon, q.foe.moves, fl.ba, false);
+      row.mine = bestOf(mineAll);
+      row.theirs = bestOf(theirsAll);
+      row.myPriority = bestPriority(mineAll);
+      row.foePriority = bestPriority(theirsAll);
+      row.hazardPct = entryHazardPct(mon, fl.ab.attackerSide, fl.ab);
       const s = summary(mon, fl.ab, fl.ab.attackerSide);
       row.speed = s.speed;
       row.maxHP = s.maxHP;
@@ -262,10 +318,45 @@ function lists() {
   return JSON.stringify({ items, abilities, moves });
 }
 
+// Export de l'équipe au format Showdown (ce que lit pokepast.es) : noms anglais de Showdown,
+// ou ceux de Cobblemon pour les Pokémon / objets / attaques custom du serveur.
+function paste(json) {
+  const team = typeof json === 'string' ? JSON.parse(json) : json;
+  const word = (id) => String(id || '').replace(/^.*:/, '').replace(/[_-]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+  const labels = { hp: 'HP', atk: 'Atk', def: 'Def', spa: 'SpA', spd: 'SpD', spe: 'Spe' };
+  const blocks = [];
+  for (const p of team) {
+    const sp = gen.species.get(toID(p.species));
+    const species = sp ? sp.name : (p.enName || word(p.species));
+    const item = p.item ? (nameOf(gen.items, p.item) || word(p.item)) : '';
+    let head = p.nickname && p.nickname !== species ? `${p.nickname} (${species})` : species;
+    if (p.gender === 'M' || p.gender === 'F') head += ` (${p.gender})`;
+    if (item) head += ` @ ${item}`;
+    const lines = [head];
+    const ability = nameOf(gen.abilities, p.ability) || word(p.ability);
+    if (ability) lines.push(`Ability: ${ability}`);
+    if (p.level && p.level !== 100) lines.push(`Level: ${p.level}`);
+    if (p.shiny) lines.push('Shiny: Yes');
+    const tera = cap(p.teraType);
+    if (tera) lines.push(`Tera Type: ${tera}`);
+    const evs = STATS.filter((s) => (p.evs || {})[s] > 0).map((s) => `${p.evs[s]} ${labels[s]}`);
+    if (evs.length) lines.push(`EVs: ${evs.join(' / ')}`);
+    const nature = nameOf(gen.natures, p.nature);
+    if (nature) lines.push(`${nature} Nature`);
+    const ivs = STATS.filter((s) => (p.ivs || {})[s] != null && p.ivs[s] !== 31).map((s) => `${p.ivs[s]} ${labels[s]}`);
+    if (ivs.length) lines.push(`IVs: ${ivs.join(' / ')}`);
+    for (const m of (p.moves || [])) {
+      if (m) lines.push(`- ${nameOf(gen.moves, m) || word(m)}`);
+    }
+    blocks.push(lines.join('\n'));
+  }
+  return JSON.stringify({ text: blocks.join('\n\n') + '\n' });
+}
+
 function safe(fn) {
   return function (arg) {
     try { return fn(arg); } catch (e) { return JSON.stringify({ error: String(e && e.stack || e) }); }
   };
 }
 
-globalThis.feurcalc = { calc: safe(calc), matchups: safe(matchups), lists: safe(lists), version: '0.12.0' };
+globalThis.feurcalc = { calc: safe(calc), matchups: safe(matchups), lists: safe(lists), paste: safe(paste), version: '0.12.0' };

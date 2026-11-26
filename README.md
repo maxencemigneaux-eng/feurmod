@@ -1,4 +1,4 @@
-# Feurmod — les mods Cobblemon de Goat, en un seul
+# Feurmod — les mods Cobblemon de FeurIndustry, en un seul
 
 Pour **Cobblemon 1.8.x** (Fabric, Minecraft 1.21.1). Regroupe quatre mods, plus quelques bonus :
 
@@ -84,13 +84,25 @@ JavaScript déjà présent dans Cobblemon.
 - **Fin de tour dans les KO** : Restes, poison, brûlure, météo, Piège de Roc, Picots, et les nouveaux boutons
   **Vampigraine** / **Salaison** de chaque côté. Le survol d'une attaque dit ce qui est compté.
 - **Adversaires déjà vus** : en haut de la liste quand tu choisis un Pokémon, avec ce qu'ils ont révélé en combat.
+- **Fidèle au combat** : en combat, toujours le **vrai niveau** (le réglage « niveau 100 » ne sert qu'hors combat), les **PV
+  exacts** (Multiécaille / Fermeté ne comptent qu'à PV vraiment pleins), ta **Téracristal** et tes **objets utilisés ou perdus**
+  (Ballon, baies, Énergie Booster, objet volé...), **Paléosynthèse / Charge Quantique** qui restent actives après l'Énergie
+  Booster, le compteur de **Toxik**, les **alliés K.O.** (Suprématie, Dernier Hommage), **Vampigraine / Salaison**,
+  **Change Côté**. Les météos et champs viennent des messages du combat (le sable reste 5 tours après la sortie de Tyranitar).
+- **Distorsion** (bouton dans la barre du haut, rempli tout seul en combat) : la flèche de vitesse dit qui agit en premier.
+- **Qui envoyer ?** tient compte des pièges en entrant, du coup reçu pendant le switch, de la priorité, de Distorsion et
+  des chances de K.O.
 
-## Timers des légendaires (ex-Feurleg)
+## Timers des légendaires : FeurHUD (ex-Feurleg)
 
-Ouvre `/leg` une fois : le panneau garde tous les timers en coin d'écran et les décompte tout seul (couleurs :
-bleu ≥ 10 min, jaune, violet < 5 min, rouge < 2 min). Survole chaque zone dans `/leg` pour apprendre son moment
-de la journée : le panneau affiche alors l'heure Minecraft du spawn (`~21:30 nuit`). Alerte au milieu de l'écran +
-son à 1 minute. Réglages dans `/feurmod`.
+Ouvre `/leg` une fois : le **FeurHUD** garde tous les timers en coin d'écran et les décompte tout seul, du plus
+proche au plus lointain : `Hoenn » 00h 01m 39s [18:16]`. Le monde où tu te trouves est entièrement en **gras**.
+Noms au choix dans `/feurmod` : Johto / Hoenn / Unys ou Construction01 / 02 / 03 (et Ressources01, 02, 03).
+Couleurs : **vert** au-dessus de 10 min, **jaune** de 10:00 à 5:01, **orange** de 5:00 à 0:31, **rouge** de 0:30 à 0.
+Entre crochets : l'heure Minecraft du spawn, calculée une fois puis figée (passe une fois dans chaque zone avec `/leg`
+ouvert pour apprendre son heure, sinon `[N/A]`). Le décompte suit les **ticks du serveur** comme le timer de `/leg`
+(1 s = 20 ticks) : il reste juste même quand le serveur rame. Alerte au milieu de l'écran + son à 1 minute. Coin de
+l'écran, taille et fond dans `/feurmod`.
 
 ## Recherche dans le PC
 

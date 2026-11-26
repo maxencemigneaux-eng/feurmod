@@ -3,9 +3,9 @@
   "id": "feurmod",
   "version": "${version}",
   "name": "Feurmod",
-  "description": "Les mods Cobblemon de Goat en un seul : bouton « Annuler » en combat (comme Showdown), fiche Pokémon /feurinfo (modèle 3D, talents, stats, attaques) et calculateur de dégâts façon Showdex (/feurcalc, touche J) et timers des légendaires toujours affichés (ex-Feurleg). Calculs : @smogon/calc (MIT).",
+  "description": "Les mods Cobblemon de FeurIndustry en un seul : bouton « Annuler » en combat (comme Showdown), fiche Pokémon /feurinfo (modèle 3D, talents, stats, attaques) et calculateur de dégâts façon Showdex (/feurcalc, touche J) et timers des légendaires toujours affichés (ex-Feurleg). Calculs : @smogon/calc (MIT).",
   "authors": [
-    "Goat"
+    "FeurIndustry"
   ],
   "environment": "*",
   "entrypoints": {

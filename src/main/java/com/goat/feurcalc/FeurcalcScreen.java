@@ -660,13 +660,17 @@ public final class FeurcalcScreen extends Screen {
                 Names.tr("feurcalc.field.weather", Names.weatherName(f.weather)),
                 Names.tr("feurcalc.field.terrain", Names.terrainName(f.terrain)),
                 Names.tr("feurcalc.field.gravity"), Names.tr("feurcalc.field.crit"),
-                Names.tr("feurcalc.field.doubles"), Names.tr("feurcalc.team.button")};
+                Names.tr("feurcalc.field.doubles"), Names.tr("feurcalc.team.button"),
+                Names.tr("feurcalc.field.trickroom")};
         String[] small = {
                 Names.weatherName(f.weather), Names.terrainName(f.terrain),
                 Names.tr("feurcalc.field.gravity.short"), Names.tr("feurcalc.field.crit.short"),
-                Names.tr("feurcalc.field.doubles.short"), Names.tr("feurcalc.team.button")};
+                Names.tr("feurcalc.field.doubles.short"), Names.tr("feurcalc.team.button"),
+                Names.tr("feurcalc.field.trickroom.short")};
         int titleW = font.width("Feurcalc") + 10;
-        int fixedW = 4 + 16 + 14 + 2; // ⇄ et ?
+        String exportLabel = Names.tr("feurcalc.export.button");
+        int exportW = font.width(exportLabel) + 10;
+        int fixedW = 4 + 16 + 14 + 2 + exportW + 5; // Export, ⇄ et ?
         boolean compact = barWidth(full, 12, 5) + titleW + fixedW + 10 > contentW;
         boolean showTitle = !compact || barWidth(small, 8, 3) + titleW + fixedW + 6 <= contentW;
         String[] labels = compact ? small : full;
@@ -696,6 +700,11 @@ public final class FeurcalcScreen extends Screen {
                 List.of(tr("feurcalc.tip.gravity")));
         x += w + gap;
 
+        w = font.width(labels[6]) + padW;
+        chip(g, x, y, w, h, labels[6], C_TEXT, f.trickRoom, true, mx, my, () -> f.trickRoom = !f.trickRoom, null,
+                List.of(tr("feurcalc.tip.trickroom")));
+        x += w + gap;
+
         w = font.width(labels[3]) + padW;
         chip(g, x, y, w, h, labels[3], C_TEXT, f.crit, true, mx, my, () -> f.crit = !f.crit, null,
                 List.of(tr("feurcalc.tip.crit")));
@@ -713,6 +722,10 @@ public final class FeurcalcScreen extends Screen {
             TeamMatchups.want();
         }, null, List.of(tr("feurcalc.tip.team"), tr("feurcalc.tip.team2")));
         x += w + gap;
+
+        chip(g, x, y, exportW, h, exportLabel, C_TITLE, false, true, mx, my, TeamExport::copyParty, null,
+                List.of(tr("feurcalc.tip.export"), tr("feurcalc.tip.export2")));
+        x += exportW + gap;
 
         x += 4; // un peu plus d'air avant ⇄ et ?
         chip(g, x, y, 16, h, "⇄", C_TEXT, false, true, mx, my, state::swapSides, null, List.of(tr("feurcalc.tip.swap")));
@@ -1183,14 +1196,16 @@ public final class FeurcalcScreen extends Screen {
         if (mine != null && theirs != null) {
             int sp = CalcState.getInt(mine, "speed", 0);
             int other = CalcState.getInt(theirs, "speed", 0);
+            // Sous Distorsion, le plus lent agit en premier : la flèche dit qui joue avant
+            int first = state.field.whoMovesFirst(0, sp, 0, other);
             String arrow;
             int color;
             String key;
-            if (sp > other) {
+            if (first > 0) {
                 arrow = " ▲";
                 color = 0xFF7FE08A;
                 key = "feurcalc.speed.faster";
-            } else if (sp < other) {
+            } else if (first < 0) {
                 arrow = " ▼";
                 color = 0xFFFF8A7A;
                 key = "feurcalc.speed.slower";
@@ -1201,7 +1216,11 @@ public final class FeurcalcScreen extends Screen {
             }
             String label = sp + arrow;
             text(label, rightCol + labelW + 4, textY(y3, h), color);
-            tipArea(mx, my, rightCol, y3, colW, h, List.of(tr(key, sp, other), tr("feurcalc.tip.speed")));
+            List<Component> speedTip = new ArrayList<>(List.of(tr(key, sp, other), tr("feurcalc.tip.speed")));
+            if (state.field.trickRoom) {
+                speedTip.add(tr("feurcalc.tip.speed.trickroom").withStyle(ChatFormatting.LIGHT_PURPLE));
+            }
+            tipArea(mx, my, rightCol, y3, colW, h, speedTip);
         }
     }
 

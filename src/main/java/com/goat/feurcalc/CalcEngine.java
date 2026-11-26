@@ -47,6 +47,7 @@ public final class CalcEngine {
     private static Context context;
     private static Value calcFunction;
     private static Value matchupsFunction;
+    private static Value pasteFunction;
 
     private CalcEngine() {
     }
@@ -98,6 +99,7 @@ public final class CalcEngine {
             Value api = context.getBindings("js").getMember("feurcalc");
             calcFunction = api.getMember("calc");
             matchupsFunction = api.getMember("matchups");
+            pasteFunction = api.getMember("paste");
 
             JsonObject lists = JsonParser.parseString(api.getMember("lists").execute().asString()).getAsJsonObject();
             knownItems = toSet(lists.getAsJsonArray("items"));
@@ -131,6 +133,11 @@ public final class CalcEngine {
     /** "Qui envoyer ?" : les duels de toute ton équipe contre l'adversaire (feurcalc.matchups). */
     public static CompletableFuture<JsonObject> matchups(String requestJson) {
         return call(() -> matchupsFunction, requestJson);
+    }
+
+    /** L'équipe au format Showdown / PokePaste : {"text": ...}. */
+    public static CompletableFuture<JsonObject> paste(String requestJson) {
+        return call(() -> pasteFunction, requestJson);
     }
 
     private static CompletableFuture<JsonObject> call(java.util.function.Supplier<Value> function, String requestJson) {

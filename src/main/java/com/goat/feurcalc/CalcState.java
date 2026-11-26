@@ -86,6 +86,11 @@ public final class CalcState {
             "drizzle", "Rain", "primordialsea", "Heavy Rain", "deltastream", "Strong Winds",
             "sandstream", "Sand", "snowwarning", "Snow");
     private static final java.util.Set<String> PRIMAL_WEATHERS = java.util.Set.of("Harsh Sunshine", "Heavy Rain", "Strong Winds");
+
+    /** Météo primale ? (Set.of(...).contains(null) plante : un talent sans météo donne null.) */
+    private static boolean isPrimal(@Nullable String weather) {
+        return weather != null && PRIMAL_WEATHERS.contains(weather);
+    }
     private static final java.util.Map<String, String> TERRAIN_ABILITIES = java.util.Map.of(
             "electricsurge", "Electric", "hadronengine", "Electric", "grassysurge", "Grassy",
             "psychicsurge", "Psychic", "mistysurge", "Misty");
@@ -121,6 +126,16 @@ public final class CalcState {
             String weather = WEATHER_ABILITIES.get(ability);
             String terrain = TERRAIN_ABILITIES.get(ability);
             String otherAbility = Names.normalize(mons[1 - i].isEmpty() ? "" : mons[1 - i].ability);
+            if (inBattle) {
+                // En combat, ce sont les messages du combat qui font foi : une météo normale (Sable de Tyranitar...) ou un
+                // champ dure 5 tours même après la sortie de celui qui l'a posé, et le talent du set n'est qu'une supposition.
+                // Seules les météos primales (sans message) restent gérées ici : elles s'arrêtent quand leur Pokémon sort.
+                if (weather != null && !isPrimal(weather)) weather = null;
+                terrain = null;
+                if (terrainSet != null) terrainSet = null;
+                if (weatherSet != null && !isPrimal(weatherSet)) weatherSet = null;
+                otherAbility = isPrimal(WEATHER_ABILITIES.get(otherAbility)) ? otherAbility : "";
+            }
             // Le talent qui avait posé la météo / le champ n'est plus là (des deux côtés) : on remet comme avant
             if (!first && weather == null && weatherSet != null && weatherSet.equals(field.weather)
                     && !weatherSet.equals(WEATHER_ABILITIES.get(otherAbility))) {
@@ -133,7 +148,7 @@ public final class CalcState {
                 terrainSet = null;
             }
             // Une météo primale (Terre Finale, Mer Primaire, Souffle Delta) ne peut pas être remplacée par une météo normale
-            boolean primalBlocks = weather != null && PRIMAL_WEATHERS.contains(field.weather) && !PRIMAL_WEATHERS.contains(weather)
+            boolean primalBlocks = weather != null && isPrimal(field.weather) && !isPrimal(weather)
                     && field.weather.equals(WEATHER_ABILITIES.get(otherAbility));
             if (weather != null && !weather.equals(field.weather) && !primalBlocks) {
                 if (weatherSet == null) weatherBefore = field.weather;
@@ -248,6 +263,7 @@ public final class CalcState {
             lastOppUuid = null;
             lastMySig = null;
             lastOppSig = null;
+            lastSeeds = null;
             mySlot = 0;
             oppSlot = 0;
             try {
@@ -293,6 +309,16 @@ public final class CalcState {
             lastFieldVersion = BattleLog.fieldVersion();
             BattleLog.applyField(field);
         }
+        // Pokémon K.O. de chaque côté (vus à leurs PV) : Suprématie, Dernier Hommage
+        for (ClientBattlePokemon p : oppActives) {
+            if (p.getHpValue() <= 0) BattleLog.markFainted(p.getUuid(), false);
+        }
+        for (ClientBattlePokemon p : myActives) {
+            if (p.getHpValue() <= 0) BattleLog.markFainted(p.getUuid(), true);
+        }
+        for (Pokemon p : battleTeam) {
+            if (p.getCurrentHealth() <= 0) BattleLog.markFainted(p.getUuid(), true);
+        }
 
         ClientBattlePokemon mine = myActives.isEmpty() ? null : myActives.get(Math.floorMod(mySlot, myActives.size()));
         if (mine != null) {
@@ -317,6 +343,7 @@ public final class CalcState {
                 a.updateFromBattle(mine);
                 lastMySig = sig;
             }
+            battleCounters(a, mine.getUuid(), true);
         }
 
         ClientBattlePokemon opp = oppActives.isEmpty() ? null : oppActives.get(Math.floorMod(oppSlot, oppActives.size()));
@@ -335,8 +362,30 @@ public final class CalcState {
                 b.updateFromBattle(opp);
                 lastOppSig = sig;
             }
+            battleCounters(b, opp.getUuid(), false);
             rememberOpponent(opp.getUuid(), b);
         }
+
+        // Vampigraine / Salaison lus dans les messages : recopiés quand ils changent (le Pokémon en jeu compris),
+        // pour que les boutons restent réglables à la main entre deux changements
+        String seeds = BattleLog.seeded(a.uuid) + "/" + BattleLog.saltCured(a.uuid) + "/"
+                + BattleLog.seeded(b.uuid) + "/" + BattleLog.saltCured(b.uuid);
+        if (!seeds.equals(lastSeeds)) {
+            lastSeeds = seeds;
+            field.a.seeded = BattleLog.seeded(a.uuid);
+            field.a.saltCure = BattleLog.saltCured(a.uuid);
+            field.b.seeded = BattleLog.seeded(b.uuid);
+            field.b.saltCure = BattleLog.saltCured(b.uuid);
+        }
+    }
+
+    @Nullable private String lastSeeds;
+
+    /** Ce qui ne dure que tant que le Pokémon est en jeu : Paléosynthèse / Charge Quantique, Toxik, alliés K.O. */
+    private static void battleCounters(MonState m, UUID uuid, boolean mine) {
+        m.paradoxStat = BattleLog.paradox(uuid);
+        m.toxicCounter = BattleLog.toxicCounter(uuid);
+        m.alliesFainted = BattleLog.faintedAllies(mine, uuid);
     }
 
     /** Garde une copie de l'adversaire (et de ce qu'il a révélé) pour la liste « Adversaires déjà vus ». */
@@ -346,7 +395,13 @@ public final class CalcState {
         }
         seenOpponents(); // charge d'abord ceux des parties précédentes
         SEEN_OPPONENTS.remove(uuid);
-        SEEN_OPPONENTS.put(uuid, m.copy());
+        MonState copy = m.copy();
+        // Ce qui ne vaut que pour ce moment du combat ne suit pas dans la liste
+        copy.paradoxStat = null;
+        copy.toxicCounter = 0;
+        copy.alliesFainted = 0;
+        copy.hpRatio = -1;
+        SEEN_OPPONENTS.put(uuid, copy);
         while (SEEN_OPPONENTS.size() > MAX_SEEN) {
             SEEN_OPPONENTS.remove(SEEN_OPPONENTS.keySet().iterator().next());
         }

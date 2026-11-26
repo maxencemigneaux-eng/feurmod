@@ -26,13 +26,47 @@ public final class TimerStore {
         boolean warned;
         boolean alerted;
 
+        /** Fin connue précisément : lue au moment exact où le chrono du menu a changé (ou reprise du fichier). */
+        boolean precise;
+        /** Quand ce timer a été créé ou relancé (heure réelle). */
+        long cycleStart;
+        /** Dernière valeur lue dans le menu (secondes) et quand, pour repérer le moment où elle change. */
+        long lastShown = -1;
+        long lastShownAt;
+        long lastEdgeAt;
+
+        /** Heure Minecraft du spawn, calculée une fois puis figée jusqu'au prochain cycle. -1 = pas encore. */
+        public long frozenTick = -1;
+        /** true si l'heure figée vient de l'horloge exacte de la zone (sinon estimation par le moment de la journée). */
+        public boolean frozenExact;
+
         Timer(String name, long endMillis) {
             this.name = name;
             this.endMillis = endMillis;
+            this.cycleStart = TickClock.now();
         }
 
+        /** Nouveau cycle (le serveur a relancé le timer) : on oublie l'heure figée. */
+        void restart(long newEnd, long now) {
+            if (newEnd > endMillis) {
+                warned = false;
+                alerted = false;
+            }
+            endMillis = newEnd;
+            precise = false;
+            cycleStart = now;
+            frozenTick = -1;
+            frozenExact = false;
+        }
+
+        /** Assez sûr pour figer l'heure Minecraft : fin précise, ou lue depuis plus de 10 s. */
+        public boolean settled() {
+            return precise || TickClock.now() - cycleStart > 10_000;
+        }
+
+        /** Temps restant en millisecondes "temps serveur" (1 s = 20 ticks du serveur, comme le timer de /leg). */
         public long remainingMillis() {
-            return endMillis - System.currentTimeMillis();
+            return endMillis - TickClock.now();
         }
     }
 
@@ -66,7 +100,9 @@ public final class TimerStore {
             long now = System.currentTimeMillis();
             int stale = FeurlegConfig.get().staleAfterSeconds;
             saved.forEach((name, end) -> {
-                Timer t = new Timer(name, end);
+                // Le fichier garde la fin en temps réel ; en mémoire, elle est en "temps serveur"
+                Timer t = new Timer(name, TickClock.fromReal(end));
+                t.precise = true; // déjà affinée lors d'une session précédente
                 // Ne pas re-sonner pour des timers déjà passés pendant qu'on était absent.
                 if (end - now <= FeurlegConfig.get().warnSeconds * 1000L) t.warned = true;
                 if (end - now <= 0) t.alerted = true;
@@ -80,28 +116,51 @@ public final class TimerStore {
         timers.clear();
     }
 
-    /** Met à jour avec les valeurs lues dans le menu /leg (secondes restantes par zone). */
+    /** Au-delà de cet écart, c'est un nouveau cycle (le serveur a relancé le timer), pas une imprécision de lecture. */
+    private static final long RESTART_MS = 30_000;
+
+    /**
+     * Met à jour avec les valeurs lues dans le menu /leg (secondes restantes par zone). Appelé à chaque image tant que
+     * le menu est ouvert.
+     *
+     * Le menu n'est pas rafraîchi à chaque image par le serveur : une même valeur reste affichée un moment, donc
+     * "maintenant + valeur" est de plus en plus en retard au fil des images (c'était la source des erreurs de quelques
+     * secondes). La seule lecture fiable est celle de l'instant où la valeur change : c'est là qu'on cale la fin.
+     */
     public void sync(Map<String, Long> secondsByZone) {
-        long now = System.currentTimeMillis();
+        long now = TickClock.now();
         boolean changed = false;
 
         // Nouvel ordre = ordre du menu ; on garde les zones connues absentes de la lecture.
         Map<String, Timer> reordered = new LinkedHashMap<>();
         for (Map.Entry<String, Long> e : secondsByZone.entrySet()) {
-            long newEnd = now + e.getValue() * 1000L;
+            long shown = e.getValue();
+            long estimate = now + shown * 1000L;
             Timer t = timers.get(e.getKey());
             if (t == null) {
-                t = new Timer(e.getKey(), newEnd);
+                t = new Timer(e.getKey(), estimate);
                 changed = true;
-            } else if (Math.abs(t.endMillis - newEnd) > 2000) {
-                // Écart de plus de 2 s : le serveur a relancé ou corrigé ce timer.
-                if (newEnd > t.endMillis) {
-                    t.warned = false;
-                    t.alerted = false;
+            } else if (Math.abs(estimate - t.endMillis) > RESTART_MS) {
+                t.restart(estimate, now);
+                changed = true;
+            } else {
+                // La valeur vient de changer entre deux images qui se suivent : lecture fraîche, au plus près.
+                boolean edge = t.lastShown >= 0 && shown != t.lastShown && now - t.lastShownAt < 1500;
+                if (edge) {
+                    // Nouvelle ouverture du menu : on repart de cette lecture ; sinon on garde la plus tôt
+                    // (une lecture ne peut être qu'en retard, jamais en avance).
+                    long best = (!t.precise || now - t.lastEdgeAt > 60_000) ? estimate : Math.min(t.endMillis, estimate);
+                    if (best != t.endMillis) changed = true;
+                    t.endMillis = best;
+                    t.precise = true;
+                    t.lastEdgeAt = now;
+                } else if (!t.precise && estimate < t.endMillis) {
+                    t.endMillis = estimate;
+                    changed = true;
                 }
-                t.endMillis = newEnd;
-                changed = true;
             }
+            t.lastShown = shown;
+            t.lastShownAt = now;
             reordered.put(t.name, t);
         }
         for (Timer t : timers.values()) reordered.putIfAbsent(t.name, t);
@@ -116,7 +175,7 @@ public final class TimerStore {
         if (serverKey == null) return;
         Map<String, LinkedHashMap<String, Long>> all = readFile();
         LinkedHashMap<String, Long> mine = new LinkedHashMap<>();
-        timers.values().forEach(t -> mine.put(t.name, t.endMillis));
+        timers.values().forEach(t -> mine.put(t.name, TickClock.toReal(t.endMillis)));
         all.put(serverKey, mine);
         try {
             Files.createDirectories(FILE.getParent());

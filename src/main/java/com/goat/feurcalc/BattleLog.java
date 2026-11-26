@@ -35,6 +35,16 @@ public final class BattleLog {
     private static final Map<UUID, int[]> BOOSTS = new HashMap<>();
     /** Ceux qui viennent d'utiliser Relais : leurs boosts iront au remplaçant. */
     private static final Set<UUID> PASSING = new java.util.HashSet<>();
+    /** Paléosynthèse / Charge Quantique activée (reste active même après l'Énergie Booster) : stat boostée, "" = inconnue. */
+    private static final Map<UUID, String> PARADOX = new HashMap<>();
+    /** Toxik : nombre de fois où le poison a déjà fait des dégâts depuis l'entrée en jeu. */
+    private static final Map<UUID, Integer> TOXIC_TICKS = new HashMap<>();
+    /** Sous Vampigraine / Salaison (disparaît quand le Pokémon sort). */
+    private static final Set<UUID> SEEDED = new java.util.HashSet<>();
+    private static final Set<UUID> SALT_CURED = new java.util.HashSet<>();
+    /** Pokémon K.O. de chaque côté (Suprématie, Dernier Hommage). */
+    private static final Set<UUID> FAINTED_MINE = new java.util.HashSet<>();
+    private static final Set<UUID> FAINTED_OPP = new java.util.HashSet<>();
     private static Set<UUID> prevMine = Set.of();
     private static Set<UUID> prevOpp = Set.of();
 
@@ -59,7 +69,7 @@ public final class BattleLog {
         String[][] abilities = {
                 {"ability.sturdy", "sturdy"}, {"ability.unnerve", "unnerve"}, {"ability.anticipation", "anticipation"},
                 {"ability.magicbounce", "magicbounce"}, {"ability.airlock", "airlock"}, {"ability.cloudnine", "cloudnine"},
-                {"activate.protosynthesis", "protosynthesis"}, {"activate.mummy", "mummy"}, {"activate.disguise", "disguise"},
+                {"activate.protosynthesis", "protosynthesis"}, {"activate.quarkdrive", "quarkdrive"}, {"activate.mummy", "mummy"}, {"activate.disguise", "disguise"},
                 {"damage.pokemonmimikyubusted", "disguise"}, {"activate.synchronize", "synchronize"},
                 {"activate.forewarn", "forewarn"},
                 {"heal.dryskin", "dryskin"}, {"damage.dryskin", "dryskin"}, {"heal.icybody", "icybody"},
@@ -122,6 +132,12 @@ public final class BattleLog {
             REVEALED.clear();
             BOOSTS.clear();
             PASSING.clear();
+            PARADOX.clear();
+            TOXIC_TICKS.clear();
+            SEEDED.clear();
+            SALT_CURED.clear();
+            FAINTED_MINE.clear();
+            FAINTED_OPP.clear();
             prevMine = Set.of();
             prevOpp = Set.of();
             field = new FieldState(); // nouveau combat : terrain vide
@@ -144,10 +160,54 @@ public final class BattleLog {
         return uuid == null ? null : REVEALED.get(uuid);
     }
 
-    /** Ce que le combat a révélé pour ce côté du calcul (seulement les Pokémon vus en combat). */
+    /**
+     * Ce que le combat a révélé pour ce côté du calcul : l'adversaire, et aussi ton propre Pokémon pendant un combat
+     * (Téracristal, objet utilisé ou perdu : Ballon éclaté, baie mangée, Énergie Booster, objet volé ou échangé...).
+     */
     @Nullable
     public static Revealed forMon(MonState m) {
-        return m.source == MonState.Source.BATTLE ? get(m.uuid) : null;
+        if (m.source == MonState.Source.BATTLE) {
+            return get(m.uuid);
+        }
+        if (m.source == MonState.Source.PARTY && MonState.inBattleNow()) {
+            return get(m.uuid);
+        }
+        return null;
+    }
+
+    // =======================================================================================
+    // États qui durent tant que le Pokémon reste en jeu
+
+    /** Paléosynthèse / Charge Quantique active : null = non, "" = stat inconnue, sinon "atk", "def", "spa", "spd", "spe". */
+    @Nullable
+    public static String paradox(@Nullable UUID uuid) {
+        return uuid == null ? null : PARADOX.get(uuid);
+    }
+
+    /** Toxik : multiplicateur des prochains dégâts (1 au premier tour, puis 2, 3...). */
+    public static int toxicCounter(@Nullable UUID uuid) {
+        return uuid == null ? 1 : 1 + TOXIC_TICKS.getOrDefault(uuid, 0);
+    }
+
+    public static boolean seeded(@Nullable UUID uuid) {
+        return uuid != null && SEEDED.contains(uuid);
+    }
+
+    public static boolean saltCured(@Nullable UUID uuid) {
+        return uuid != null && SALT_CURED.contains(uuid);
+    }
+
+    /** Signale un Pokémon K.O. (vu à ses PV), pour compter les alliés tombés de chaque côté. */
+    public static void markFainted(@Nullable UUID uuid, boolean mine) {
+        if (uuid != null) {
+            (mine ? FAINTED_MINE : FAINTED_OPP).add(uuid);
+        }
+    }
+
+    /** Nombre de Pokémon K.O. de ce côté, sans compter celui-ci. */
+    public static int faintedAllies(boolean mine, @Nullable UUID except) {
+        Set<UUID> set = mine ? FAINTED_MINE : FAINTED_OPP;
+        return set.size() - (except != null && set.contains(except) ? 1 : 0);
     }
 
     // =======================================================================================
@@ -267,6 +327,12 @@ public final class BattleLog {
         onField.addAll(opp);
         BOOSTS.keySet().retainAll(onField);
         PASSING.retainAll(onField);
+        // Sortir du terrain met fin à Paléosynthèse / Charge Quantique, remet le compteur de Toxik à zéro
+        // et enlève Vampigraine / Salaison
+        PARADOX.keySet().retainAll(onField);
+        TOXIC_TICKS.keySet().retainAll(onField);
+        SEEDED.retainAll(onField);
+        SALT_CURED.retainAll(onField);
     }
 
     private static void passBoosts(Set<UUID> before, Set<UUID> now) {
@@ -298,6 +364,7 @@ public final class BattleLog {
         if (weatherSeen) target.weather = field.weather;
         if (terrainSeen) target.terrain = field.terrain;
         target.gravity = field.gravity;
+        target.trickRoom = field.trickRoom;
         copySide(field.a, target.a);
         copySide(field.b, target.b);
     }
@@ -345,6 +412,8 @@ public final class BattleLog {
                 else if (t.equals(field.terrain)) field.terrain = "";
             } else if (p[1].equals("gravity")) {
                 field.gravity = start;
+            } else if (p[1].equals("trickroom")) {
+                field.trickRoom = start;
             } else {
                 return false;
             }
@@ -368,6 +437,14 @@ public final class BattleLog {
         }
         if (changed) fieldVersion++;
         return true;
+    }
+
+    /** Change Côté : les murs, pièges et Vent Arrière changent de camp. */
+    private static void swapSides() {
+        FieldState.Side tmp = field.a.copy();
+        copySide(field.b, field.a);
+        copySide(tmp, field.b);
+        fieldVersion++;
     }
 
     private static int[] boostsOf(ClientBattlePokemon p) {
@@ -456,6 +533,52 @@ public final class BattleLog {
     }
 
     private static void handleOther(ClientBattle battle, String k, Object[] args) {
+        // Paléosynthèse / Charge Quantique : "activate.protosynthesis", "start.quarkdrivespe", "end.protosynthesis"...
+        if (k.contains("protosynthesis") || k.contains("quarkdrive")) {
+            ClientBattlePokemon p = resolve(battle, arg(args, 0));
+            if (p != null) {
+                ability(battle, arg(args, 0), k.contains("protosynthesis") ? "protosynthesis" : "quarkdrive");
+                if (k.startsWith("end")) {
+                    PARADOX.remove(p.getUuid());
+                } else {
+                    String stat = paradoxStat(k);
+                    if (stat.isEmpty()) {
+                        for (int i = 1; i < args.length && stat.isEmpty(); i++) {
+                            stat = paradoxStat(Names.toId(text(args[i])));
+                        }
+                    }
+                    String before = PARADOX.get(p.getUuid());
+                    PARADOX.put(p.getUuid(), stat.isEmpty() && before != null ? before : stat);
+                }
+            }
+            return;
+        }
+        // Dégâts du poison : fait monter le compteur de Toxik ("damage.psn", "damage.tox"...)
+        if (k.equals("damage.psn") || k.equals("damage.tox") || k.equals("damage.poison")) {
+            ClientBattlePokemon p = resolve(battle, arg(args, 0));
+            if (p != null) {
+                TOXIC_TICKS.merge(p.getUuid(), 1, Integer::sum);
+            }
+            return;
+        }
+        // Vampigraine / Salaison : "start.leechseed", "damage.leechseed", "end.leechseed"...
+        if (k.contains("leechseed") || k.contains("saltcure")) {
+            Set<UUID> set = k.contains("leechseed") ? SEEDED : SALT_CURED;
+            // Message de soin de Vampigraine : le 1er argument peut être celui qui récupère les PV, pas la cible
+            if (k.startsWith("heal") || k.startsWith("drain")) {
+                return;
+            }
+            ClientBattlePokemon p = resolve(battle, arg(args, 0));
+            if (p != null) {
+                boolean changed = k.startsWith("end") ? set.remove(p.getUuid()) : set.add(p.getUuid());
+                if (changed) fieldVersion++;
+            }
+            return;
+        }
+        if (k.contains("courtchange") || k.contains("swapsideconditions")) {
+            swapSides();
+            return;
+        }
         String fixedAbility = FIXED_ABILITIES.get(k);
         if (fixedAbility != null) {
             ability(battle, arg(args, 0), fixedAbility);
@@ -480,6 +603,17 @@ public final class BattleLog {
             }
             itemGone(battle, arg(args, 0), used);
         }
+    }
+
+    /** "start.protosynthesisatk" → "atk" ; "" si la stat n'est pas dans le texte. */
+    private static String paradoxStat(String s) {
+        String t = s.toLowerCase(java.util.Locale.ROOT);
+        for (String stat : new String[]{"atk", "def", "spa", "spd", "spe"}) {
+            if (t.endsWith(stat)) {
+                return stat;
+            }
+        }
+        return "";
     }
 
     // --- Mise à jour des infos d'un Pokémon ---
@@ -572,6 +706,7 @@ public final class BattleLog {
             name = text(nameArg);
         }
         ClientBattlePokemon fallback = null;
+        boolean ambiguous = false;
         for (ClientBattleSide side : battle.getSides()) {
             for (ClientBattleActor actor : side.getActors()) {
                 for (ActiveClientBattlePokemon active : actor.getActivePokemon()) {
@@ -582,6 +717,8 @@ public final class BattleLog {
                     if (owner == null) {
                         if (fallback == null) {
                             fallback = pokemon;
+                        } else if (fallback != pokemon) {
+                            ambiguous = true; // même nom des deux côtés (miroir) : impossible de savoir lequel
                         }
                         continue;
                     }
@@ -591,7 +728,7 @@ public final class BattleLog {
                 }
             }
         }
-        return owner == null ? fallback : null;
+        return owner == null && !ambiguous ? fallback : null;
     }
 
     private static String text(@Nullable Object o) {

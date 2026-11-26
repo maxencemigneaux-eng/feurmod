@@ -105,10 +105,11 @@ public final class TeamPanel {
             cellText(g, font, row.theirs(), theirsX, ty, colW);
             String arrow;
             int arrowColor;
-            if (row.speed() > foeSpeed) {
+            int first = row.movesFirst(CalcState.INSTANCE.field, foeSpeed);
+            if (first > 0) {
                 arrow = "▲";
                 arrowColor = 0xFF7FE08A;
-            } else if (row.speed() < foeSpeed) {
+            } else if (first < 0) {
                 arrow = "▼";
                 arrowColor = 0xFFFF8A7A;
             } else {
@@ -179,6 +180,19 @@ public final class TeamPanel {
         lines.add(Component.translatable("feurcalc.team.tip.mine", longResult(row.mine())).withStyle(ChatFormatting.WHITE));
         lines.add(Component.translatable("feurcalc.team.tip.theirs", longResult(row.theirs())).withStyle(ChatFormatting.WHITE));
         lines.add(Component.translatable("feurcalc.team.tip.speed", row.speed(), TeamMatchups.foeSpeed()).withStyle(ChatFormatting.GRAY));
+        if (CalcState.INSTANCE.field.trickRoom) {
+            lines.add(Component.translatable("feurcalc.tip.speed.trickroom").withStyle(ChatFormatting.LIGHT_PURPLE));
+        }
+        int myPrio = CalcState.getInt(row.mine(), "priority", 0);
+        int foePrio = CalcState.getInt(row.theirs(), "priority", 0);
+        if (myPrio != foePrio) {
+            lines.add(Component.translatable(myPrio > foePrio ? "feurcalc.team.tip.prio_mine" : "feurcalc.team.tip.prio_theirs")
+                    .withStyle(ChatFormatting.GRAY));
+        }
+        if (row.hazardPct() > 0) {
+            lines.add(Component.translatable("feurcalc.team.tip.hazards",
+                    String.format(Locale.ROOT, "%.1f", row.hazardPct()).replace('.', ',')).withStyle(ChatFormatting.GOLD));
+        }
         if (row.active()) {
             lines.add(Component.translatable("feurcalc.team.tip.active").withStyle(ChatFormatting.AQUA));
         }

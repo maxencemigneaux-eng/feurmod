@@ -1,28 +1,49 @@
 package com.goat.feurleg;
 
+import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.DeltaTracker;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.Style;
 
 import java.util.List;
 
-/** Le petit panneau toujours affiché dans un coin de l'écran. */
+/**
+ * "FeurHUD" : le panneau des timers, toujours affiché dans un coin de l'écran.
+ *
+ * <pre>
+ * FeurHUD
+ * Hoenn » 00h 01m 39s [18:16]   ← monde où tu es : tout en gras (sauf le »)
+ * Ressources01 » 00h 04m 28s [21:47]
+ * </pre>
+ *
+ * Code couleur repris de Legend HUD : chrono en couleur vive, nom de la zone dans la même couleur en plus sombre,
+ * « » » et crochets gris foncé, heure Minecraft gris clair, zones sans timer en gris bleuté.
+ * Vert &gt; 10 min, jaune de 10:00 à 5:01, orange de 5:00 à 0:31, rouge de 0:30 à 0.
+ * Entre crochets : l'heure Minecraft du spawn, calculée une fois puis figée jusqu'au cycle suivant.
+ */
 public final class TimerHud {
 
     private static final int PAD = 4;
     private static final int LINE = 11;
-    private static final int GAP = 10;
 
-    private static final int COLOR_TITLE = 0xFFFF5555;
-    private static final int COLOR_NAME = 0xFFDDDDDD;
-    private static final int COLOR_BLUE = 0xFF5599FF;
-    private static final int COLOR_YELLOW = 0xFFFFFF55;
-    private static final int COLOR_PURPLE = 0xFFCC66FF;
-    private static final int COLOR_RED = 0xFFFF5555;
-    private static final int COLOR_STALE = 0xFF888888;
-    private static final int COLOR_MC_DAY = 0xFFFFE0A0;
-    private static final int COLOR_MC_NIGHT = 0xFF9FC4E8;
+    // Couleurs relevées sur Legend HUD
+    private static final int COLOR_TITLE = 0xFFF0F0F0;
+    private static final int COLOR_TITLE_HUD = 0xFFA80000;
+    /** Chrono (couleur vive) et nom de la zone (même couleur, plus sombre), par état. */
+    private static final int[] TIME_COLORS = {0xFF3BCF27, 0xFFCFC127, 0xFFCF6827, 0xFFCF2727};
+    // Noms éclaircis par rapport à Legend HUD : trop sombres pour être lus sur le décor
+    private static final int[] NAME_COLORS = {0xFF7CF06A, 0xFFF2E66A, 0xFFF59A5C, 0xFFF26A6A};
+    private static final int COLOR_SEP = 0xFF8A8A8A;
+    private static final int COLOR_BRACKET = 0xFF8A8A8A;
+    private static final int COLOR_MC = 0xFFA8A8A8;
+    /** Zone sans timer valable (N/A) : nom et texte en gris bleuté. */
+    private static final int COLOR_STALE_NAME = 0xFFA4AAB4;
+    private static final int COLOR_STALE = 0xFF9197A1;
+
+    private static final String SEP = " » ";
+    private static final String NA = "N/A";
 
     private TimerHud() {}
 
@@ -33,129 +54,179 @@ public final class TimerHud {
         if (client.getDebugOverlay().showDebugScreen()) return;
 
         List<TimerStore.Timer> timers = new java.util.ArrayList<>(TimerStore.get().list());
-        // Le plus proche en haut, le plus lointain en bas ; les timers périmés ("/leg ?") tout en bas
+        // Le plus proche en haut, le plus lointain en bas ; les timers périmés tout en bas
         long staleMs = cfg.staleAfterSeconds * 1000L;
         timers.sort(java.util.Comparator
                 .comparing((TimerStore.Timer t) -> t.remainingMillis() <= -staleMs)
                 .thenComparingLong(t -> t.endMillis));
-        Font tr = client.font;
-        String title = "Feur-Leg";
-        String hint = "ouvre /leg pour charger les timers";
+        Font font = client.font;
+        boolean showMc = cfg.showMinecraftTime;
+        boolean showCd = cfg.showCountdown || !showMc;
+        String here = ZoneClock.currentZone();
 
         // Préparer les lignes et mesurer.
         int n = timers.size();
-        String[] times = new String[n];
-        int[] colors = new int[n];
-        String[] mcTimes = new String[n];
-        int[] mcColors = new int[n];
-        int nameW = 0, timeW = 0, mcW = 0;
-        boolean showMc = cfg.showMinecraftTime && client.level != null;
-        boolean showCd = cfg.showCountdown || !showMc;
+        Component[] rows = new Component[n];
+        int rowsW = 0;
         for (int i = 0; i < n; i++) {
             TimerStore.Timer t = timers.get(i);
             long left = t.remainingMillis();
-            if (left <= -cfg.staleAfterSeconds * 1000L) {
-                times[i] = "/leg ?";
-                colors[i] = COLOR_STALE;
-            } else if (left <= 0) {
-                times[i] = "0:00";
-                colors[i] = COLOR_RED;
-            } else {
-                times[i] = format(left);
-                colors[i] = countdownColor(left, cfg);
+            boolean stale = left <= -staleMs;
+            int level = colorLevel(left);
+            int timeColor = stale ? COLOR_STALE : TIME_COLORS[level];
+            String time = stale ? NA : format(left);
+            String mc = stale || left <= 0 ? NA : minecraftTime(t, left);
+            int mcColor = NA.equals(mc) ? COLOR_STALE : COLOR_MC;
+            int nameColor = stale ? COLOR_STALE_NAME : NAME_COLORS[level];
+            // Comme Legend HUD : une ligne qui se suit (pas de colonnes) ; le monde où tu es tout en gras, sauf le »
+            boolean bold = t.name.equals(here);
+            net.minecraft.network.chat.MutableComponent row = Component.literal(displayName(t.name, cfg))
+                    .withStyle(style(nameColor, bold));
+            row.append(Component.literal(SEP).withStyle(style(COLOR_SEP, false)));
+            if (showCd) {
+                row.append(Component.literal(time).withStyle(style(timeColor, bold)));
             }
             if (showMc) {
-                Long exact = left > 0 ? ZoneClock.predictTick(t.name, left) : null;
-                ZonePeriods.Prediction guess = (left > 0 && exact == null) ? ZonePeriods.predict(t.name, left) : null;
-                if (left <= 0) {
-                    mcTimes[i] = "";
-                } else if (exact != null) {
-                    mcTimes[i] = clock(exact) + " " + ZonePeriods.nameOfTick(exact);
-                    mcColors[i] = isNight(exact) ? COLOR_MC_NIGHT : COLOR_MC_DAY;
-                } else if (guess != null && guess.tick() != null) {
-                    mcTimes[i] = "~" + clock(guess.tick()) + " " + ZonePeriods.nameOfTick(guess.tick());
-                    mcColors[i] = guess.night() ? COLOR_MC_NIGHT : COLOR_MC_DAY;
-                } else if (guess != null) {
-                    mcTimes[i] = guess.word();
-                    mcColors[i] = guess.night() ? COLOR_MC_NIGHT : COLOR_MC_DAY;
-                } else {
-                    // Moment de cette zone pas encore connu : survole-la dans /leg.
-                    mcTimes[i] = "--:--";
-                    mcColors[i] = COLOR_STALE;
-                }
-                mcW = Math.max(mcW, tr.width(mcTimes[i]));
+                if (showCd) row.append(Component.literal(" "));
+                row.append(Component.literal("[").withStyle(style(COLOR_BRACKET, bold)));
+                row.append(Component.literal(mc).withStyle(style(mcColor, bold)));
+                row.append(Component.literal("]").withStyle(style(COLOR_BRACKET, bold)));
             }
-            if (!showCd && left > 0) times[i] = "";
-            nameW = Math.max(nameW, tr.width(t.name));
-            timeW = Math.max(timeW, tr.width(times[i]));
+            rows[i] = row;
+            rowsW = Math.max(rowsW, font.width(row));
         }
-        int mcCol = showMc ? mcW + GAP : 0;
 
-        int innerW = n == 0 ? tr.width(hint) : Math.max(tr.width(title), nameW + GAP + mcCol + timeW);
+        Component title = Component.literal("Feur").withStyle(Style.EMPTY.withColor(COLOR_TITLE & 0xFFFFFF).withBold(true))
+                .append(Component.literal("HUD").withStyle(Style.EMPTY.withColor(COLOR_TITLE_HUD & 0xFFFFFF).withBold(true)));
+        String hint = "Ouvre /leg pour charger les timers";
+
+        int innerW = Math.max(font.width(title), n == 0 ? font.width(hint) : rowsW);
         int w = innerW + PAD * 2;
         int h = PAD * 2 + LINE + (n == 0 ? LINE : n * LINE);
 
         float scale = Math.max(0.25f, cfg.scale);
-        int screenW = ctx.guiWidth();
-        int screenH = ctx.guiHeight();
         float sw = w * scale, sh = h * scale;
         String corner = cfg.corner == null ? "" : cfg.corner.toLowerCase();
-        float x = corner.contains("droite") ? screenW - sw - cfg.offsetX : cfg.offsetX;
-        float y = corner.contains("bas") ? screenH - sh - cfg.offsetY : cfg.offsetY;
+        float x = corner.contains("droite") ? ctx.guiWidth() - sw - cfg.offsetX : cfg.offsetX;
+        float y = corner.contains("bas") ? ctx.guiHeight() - sh - cfg.offsetY : cfg.offsetY;
 
+        TextCapture.hudSuppressed = true; // nos propres noms de zones ne doivent pas être pris pour le monde actuel
         ctx.pose().pushPose();
         ctx.pose().translate(x, y, 0);
         ctx.pose().scale(scale, scale, 1f);
 
-        int alpha = Math.max(0, Math.min(255, cfg.backgroundAlpha));
-        ctx.fill(0, 0, w, h, (alpha << 24) | 0x101010);
-        ctx.fill(0, 0, w, 1, 0xFFCC3333);
+        int alpha = Math.max(0, Math.min(255, cfg.hudBackgroundAlpha));
+        if (alpha > 0) {
+            ctx.fill(0, 0, w, h, (alpha << 24) | 0x101010);
+        }
 
-        ctx.drawString(tr, title, PAD, PAD, COLOR_TITLE);
+        ctx.drawString(font, title, PAD, PAD, COLOR_TITLE, true);
         int ly = PAD + LINE;
         if (n == 0) {
-            ctx.drawString(tr, hint, PAD, ly, COLOR_STALE);
+            ctx.drawString(font, hint, PAD, ly, COLOR_STALE, true);
         }
         for (int i = 0; i < n; i++) {
-            ctx.drawString(tr, timers.get(i).name, PAD, ly, COLOR_NAME);
-            if (showMc && !mcTimes[i].isEmpty()) {
-                int mx = showCd ? w - PAD - timeW - GAP - tr.width(mcTimes[i]) : w - PAD - tr.width(mcTimes[i]);
-                ctx.drawString(tr, mcTimes[i], mx, ly, mcColors[i]);
-            }
-            if (!times[i].isEmpty()) {
-                ctx.drawString(tr, times[i], w - PAD - tr.width(times[i]), ly, colors[i]);
-            }
+            ctx.drawString(font, rows[i], PAD, ly, 0xFFFFFFFF, true);
             ly += LINE;
         }
 
         ctx.pose().popPose();
+        TextCapture.hudSuppressed = false;
     }
 
-    /** Bleu ≥ 10 min, jaune entre 5 et 10, violet < 5, rouge < 2 (réglable). */
-    private static int countdownColor(long millis, FeurlegConfig cfg) {
-        long min = 60_000L;
-        if (millis < cfg.colorRedUnderMinutes * min) return COLOR_RED;
-        if (millis < cfg.colorPurpleUnderMinutes * min) return COLOR_PURPLE;
-        if (millis >= cfg.colorBlueFromMinutes * min) return COLOR_BLUE;
-        return COLOR_YELLOW;
+    /**
+     * Heure Minecraft du spawn ("18:16"), figée : calculée une seule fois par cycle, quand la fin du timer est sûre.
+     * Seule exception : une estimation (zone jamais visitée) est remplacée une fois par l'heure exacte dès que
+     * l'horloge de la zone est connue.
+     */
+    private static String minecraftTime(TimerStore.Timer t, long left) {
+        if (t.frozenTick >= 0 && t.frozenExact) {
+            return clock(t.frozenTick);
+        }
+        // Heure exacte : l'horloge de la zone a été mesurée pendant cette session (tu y es, ou tu y es passé)
+        Long exact = ZoneClock.isFresh(t.name) ? ZoneClock.predictTick(t.name, left) : null;
+        if (exact != null) {
+            if (t.settled()) {
+                t.frozenTick = exact;
+                t.frozenExact = true;
+            }
+            return clock(exact); // tant que la fin du timer n'est pas calée (quelques secondes), pas encore figée
+        }
+        if (t.frozenTick >= 0) {
+            return clock(t.frozenTick); // estimation figée, remplacée une fois par l'heure exacte
+        }
+        // Estimation : horloge d'une session précédente, sinon le moment de la journée vu dans /leg
+        Long guess = ZoneClock.predictTick(t.name, left);
+        if (guess == null) {
+            ZonePeriods.Prediction p = ZonePeriods.predict(t.name, left);
+            guess = p == null ? null : p.tick();
+        }
+        if (guess == null) {
+            return NA; // zone jamais visitée
+        }
+        if (t.settled()) {
+            t.frozenTick = guess;
+        }
+        return clock(guess);
+    }
+
+    private static Style style(int color, boolean bold) {
+        return Style.EMPTY.withColor(color & 0xFFFFFF).withBold(bold);
+    }
+
+    private static final java.util.regex.Pattern NUMBERED =
+            java.util.regex.Pattern.compile("(?i)^\\s*(ressources?|construction)\\s*0*(\\d{1,2})\\s*$");
+    private static final String[] REGIONS = {"Johto", "Hoenn", "Unys"};
+
+    /**
+     * Nom affiché : "Ressources 1" → "Ressources01", et selon /feurmod Johto / Hoenn / Unys ou
+     * Construction01 / 02 / 03 (dans les deux sens, quel que soit le nom envoyé par le serveur).
+     */
+    static String displayName(String zone, FeurlegConfig cfg) {
+        boolean construction = "construction".equals(cfg.zoneNames);
+        java.util.regex.Matcher m = NUMBERED.matcher(zone);
+        if (m.matches()) {
+            String base = m.group(1).toLowerCase(java.util.Locale.ROOT);
+            int num = Integer.parseInt(m.group(2));
+            if (base.equals("construction") && !construction && num >= 1 && num <= REGIONS.length) {
+                return REGIONS[num - 1];
+            }
+            return Character.toUpperCase(base.charAt(0)) + base.substring(1) + String.format("%02d", num);
+        }
+        if (construction) {
+            for (int i = 0; i < REGIONS.length; i++) {
+                if (REGIONS[i].equalsIgnoreCase(zone.trim())) {
+                    return String.format("Construction%02d", i + 1);
+                }
+            }
+        }
+        return zone;
+    }
+
+    /**
+     * Couleur selon les secondes affichées : vert au-dessus de 10:00, jaune de 10:00 à 5:01,
+     * orange de 5:00 à 0:31, rouge de 0:30 à 0:00.
+     */
+    private static int colorLevel(long millis) {
+        long s = Math.max(0, (millis + 999) / 1000);
+        if (s > 600) return 0; // vert
+        if (s > 300) return 1; // jaune
+        if (s > 30) return 2;  // orange
+        return 3;              // rouge
     }
 
     /** Tick (0-23999) -> "21:30". Le tick 0 = 6:00. */
     private static String clock(long tick) {
-        long hours = (tick / 1000 + 6) % 24;
-        long minutes = (tick % 1000) * 60 / 1000;
+        long tod = Math.floorMod(tick, 24000L);
+        long hours = (tod / 1000 + 6) % 24;
+        long minutes = (tod % 1000) * 60 / 1000;
         return String.format("%02d:%02d", hours, minutes);
     }
 
-    private static boolean isNight(long tick) {
-        return tick >= 12542 && tick < 23460;
-    }
-
-    /** 41:03 ou 1:05:09 */
+    /** "00h 01m 39s" */
     public static String format(long millis) {
         long s = Math.max(0, (millis + 999) / 1000);
         long h = s / 3600, m = (s % 3600) / 60, sec = s % 60;
-        if (h > 0) return String.format("%d:%02d:%02d", h, m, sec);
-        return String.format("%d:%02d", m, sec);
+        return String.format("%02dh %02dm %02ds", h, m, sec);
     }
 }

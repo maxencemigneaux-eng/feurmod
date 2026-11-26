@@ -53,6 +53,17 @@ public final class MonState {
     public final int[] boosts = {0, 0, 0, 0, 0, 0};
     public String status = "";
     public int hpPercent = 100;
+    /**
+     * PV exacts lus dans le combat (fraction 0..1), -1 = inconnu. Envoyés au calculateur tant que hpPercent n'a pas
+     * été changé à la main, pour ne pas perdre de précision (et ne jamais croire un Pokémon à PV pleins par arrondi).
+     */
+    public double hpRatio = -1;
+    /** Paléosynthèse / Charge Quantique active en combat : null = non, "" = stat inconnue, sinon "atk", "spe"... */
+    @Nullable public String paradoxStat;
+    /** Toxik : multiplicateur des prochains dégâts (1 = 1/16...), 0 = inconnu. */
+    public int toxicCounter;
+    /** Alliés K.O. (Suprématie, Dernier Hommage). */
+    public int alliesFainted;
     public final String[] moves = {"", "", "", ""};
 
     // Set "tout fait" (Smogon / usage Showdown) appliqué, façon Showdex
@@ -114,6 +125,10 @@ public final class MonState {
         System.arraycopy(o.boosts, 0, boosts, 0, 6);
         status = o.status;
         hpPercent = o.hpPercent;
+        hpRatio = o.hpRatio;
+        paradoxStat = o.paradoxStat;
+        toxicCounter = o.toxicCounter;
+        alliesFainted = o.alliesFainted;
         System.arraycopy(o.moves, 0, moves, 0, 4);
         setId = o.setId;
         setLabel = o.setLabel;
@@ -188,16 +203,46 @@ public final class MonState {
         PersistentStatusContainer status = pokemon.getStatus();
         m.status = status != null && status.getStatus() != null ? status.getStatus().getShowdownName() : "";
         int max = Math.max(1, pokemon.getMaxHealth());
-        m.hpPercent = Math.round(pokemon.getCurrentHealth() * 100F / max);
+        m.setHpRatio(Math.max(0, Math.min(pokemon.getCurrentHealth(), max)) / (double) max);
         return m;
     }
 
+    /** % affiché à partir des PV exacts : 100 seulement à PV vraiment pleins, 0 seulement K.O. */
+    public static int percentOf(double ratio) {
+        if (ratio >= 1) {
+            return 100;
+        }
+        if (ratio <= 0) {
+            return 0;
+        }
+        return Math.max(1, Math.min(99, (int) Math.round(ratio * 100)));
+    }
+
+    public void setHpRatio(double ratio) {
+        hpRatio = Math.max(0, Math.min(1, ratio));
+        hpPercent = percentOf(hpRatio);
+    }
+
+    /** En combat en ce moment ? */
+    public static boolean inBattleNow() {
+        try {
+            return com.cobblemon.mod.common.client.CobblemonClient.INSTANCE.getBattle() != null;
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
     /**
-     * Niveau mis automatiquement dans le calculateur : 100 (réglage par défaut, modifiable dans /feurmod),
-     * sinon le vrai niveau. Il reste toujours modifiable à la main dans le calculateur.
+     * Niveau mis automatiquement dans le calculateur. En combat : toujours le vrai niveau (celui du combat, déjà ajusté
+     * si le format change les niveaux), sinon tous les dégâts seraient faux. Hors combat : 100 si le réglage est
+     * activé dans /feurmod, sinon le vrai niveau. Il reste toujours modifiable à la main dans le calculateur.
      */
     public static int defaultLevel(int realLevel) {
-        return com.goat.feurmod.FeurmodConfig.get().calcLevel100 ? 100 : Math.max(1, Math.min(100, realLevel));
+        int real = Math.max(1, Math.min(100, realLevel));
+        if (inBattleNow()) {
+            return real;
+        }
+        return com.goat.feurmod.FeurmodConfig.get().calcLevel100 ? 100 : real;
     }
 
     /** Une espèce choisie à la main : valeurs par défaut (puis le spread sauvegardé s'il existe). */
@@ -247,12 +292,13 @@ public final class MonState {
     public void updateFromBattle(ClientBattlePokemon battlePokemon) {
         float value = battlePokemon.getHpValue();
         float max = battlePokemon.getMaxHp();
+        double ratio;
         if (battlePokemon.isHpFlat()) {
-            hpPercent = max > 0 ? Math.round(value * 100F / max) : 100;
+            ratio = max > 0 ? value / (double) max : 1;
         } else {
-            hpPercent = Math.round(value <= 1.0001F ? value * 100F : (max > 0 ? value * 100F / max : 100F));
+            ratio = value <= 1.0001F ? value : (max > 0 ? value / (double) max : 1);
         }
-        hpPercent = Math.max(0, Math.min(100, hpPercent));
+        setHpRatio(ratio);
         PersistentStatus persistent = battlePokemon.getStatus();
         status = persistent != null ? persistent.getShowdownName() : "";
         // Le client Cobblemon ne remplit pas getStatChanges() : on prend les boosts lus dans les messages
@@ -487,6 +533,19 @@ public final class MonState {
         o.addProperty("z", z);
         o.addProperty("status", status);
         o.addProperty("hpPercent", hpPercent);
+        // PV exacts seulement s'ils correspondent encore au % affiché (sinon tu l'as changé à la main)
+        if (hpRatio >= 0 && percentOf(hpRatio) == hpPercent) {
+            o.addProperty("hpRatio", hpRatio);
+        }
+        if (paradoxStat != null) {
+            o.addProperty("paradox", paradoxStat);
+        }
+        if ("tox".equals(status) && toxicCounter > 0) {
+            o.addProperty("toxicCounter", toxicCounter);
+        }
+        if (alliesFainted > 0) {
+            o.addProperty("alliesFainted", alliesFainted);
+        }
         o.add("ivs", statObject(ivs));
         o.add("evs", statObject(evs));
         o.add("boosts", statObject(boosts));
