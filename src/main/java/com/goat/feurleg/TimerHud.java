@@ -220,7 +220,8 @@ public final class TimerHud {
         long tod = Math.floorMod(tick, 24000L);
         long hours = (tod / 1000 + 6) % 24;
         long minutes = (tod % 1000) * 60 / 1000;
-        return String.format("%02d:%02d", hours, minutes);
+        String time = String.format("%02d:%02d", hours, minutes);
+        return FeurlegConfig.get().showPeriodName ? time + " " + ZonePeriods.nameOfTick(tick) : time;
     }
 
     /** "00h 01m 39s" */

@@ -100,6 +100,8 @@ public final class SettingsScreen extends Screen {
                 "Taille du panneau (50 à 200 %)", () -> true),
             toggle("Heure Minecraft du spawn", () -> leg.showMinecraftTime, v -> leg.showMinecraftTime = v,
                 "L'heure en jeu à laquelle le légendaire tombera, entre crochets. Calculée une fois puis figée.", FeurlegConfig::save),
+            toggle("Moment de la journée", () -> leg.showPeriodName, v -> leg.showPeriodName = v,
+                "Après l'heure : minuit, aube, matin, midi, après-midi, crépuscule, nuit (ex. [23:29 minuit])", FeurlegConfig::save),
             toggle("Compte à rebours", () -> leg.showCountdown, v -> leg.showCountdown = v,
                 "Le temps réel restant avant la tentative de spawn", FeurlegConfig::save),
             new Option("Prévenir avant", () -> leg.warnSeconds <= 0 ? "Jamais" : leg.warnSeconds < 60 ? leg.warnSeconds + " s" : (leg.warnSeconds / 60) + " min",

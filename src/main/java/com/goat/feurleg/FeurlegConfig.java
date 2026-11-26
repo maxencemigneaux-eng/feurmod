@@ -35,6 +35,8 @@ public final class FeurlegConfig {
 
     /** Afficher l'heure Minecraft du spawn (ex. "21:30"). */
     public boolean showMinecraftTime = true;
+    /** Le moment de la journée après l'heure (ex. "[23:29 minuit]"). */
+    public boolean showPeriodName = true;
     /** Afficher le compte à rebours (ex. "25:50"). */
     public boolean showCountdown = true;
 
