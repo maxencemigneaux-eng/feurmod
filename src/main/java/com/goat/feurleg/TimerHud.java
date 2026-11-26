@@ -110,7 +110,6 @@ public final class TimerHud {
         float x = corner.contains("droite") ? ctx.guiWidth() - sw - cfg.offsetX : cfg.offsetX;
         float y = corner.contains("bas") ? ctx.guiHeight() - sh - cfg.offsetY : cfg.offsetY;
 
-        TextCapture.hudSuppressed = true; // nos propres noms de zones ne doivent pas être pris pour le monde actuel
         ctx.pose().pushPose();
         ctx.pose().translate(x, y, 0);
         ctx.pose().scale(scale, scale, 1f);
@@ -131,43 +130,19 @@ public final class TimerHud {
         }
 
         ctx.pose().popPose();
-        TextCapture.hudSuppressed = false;
     }
 
     /**
-     * Heure Minecraft du spawn ("18:16"), figée : calculée une seule fois par cycle, quand la fin du timer est sûre.
-     * Seule exception : une estimation (zone jamais visitée) est remplacée une fois par l'heure exacte dès que
-     * l'horloge de la zone est connue.
+     * Heure Minecraft du spawn ("18:16 nuit"), recalculée à chaque image comme avant la 1.0.46 : elle se corrige toute
+     * seule en approchant du spawn. "~" = estimation (horloge de la zone pas encore mesurée, moment vu dans /leg).
      */
     private static String minecraftTime(TimerStore.Timer t, long left) {
-        if (t.frozenTick >= 0 && t.frozenExact) {
-            return clock(t.frozenTick);
-        }
-        // Heure exacte : l'horloge de la zone a été mesurée pendant cette session (tu y es, ou tu y es passé)
-        Long exact = ZoneClock.isFresh(t.name) ? ZoneClock.predictTick(t.name, left) : null;
+        Long exact = ZoneClock.predictTick(t.name, left);
         if (exact != null) {
-            if (t.settled()) {
-                t.frozenTick = exact;
-                t.frozenExact = true;
-            }
-            return clock(exact); // tant que la fin du timer n'est pas calée (quelques secondes), pas encore figée
+            return clock(exact);
         }
-        if (t.frozenTick >= 0) {
-            return clock(t.frozenTick); // estimation figée, remplacée une fois par l'heure exacte
-        }
-        // Estimation : horloge d'une session précédente, sinon le moment de la journée vu dans /leg
-        Long guess = ZoneClock.predictTick(t.name, left);
-        if (guess == null) {
-            ZonePeriods.Prediction p = ZonePeriods.predict(t.name, left);
-            guess = p == null ? null : p.tick();
-        }
-        if (guess == null) {
-            return NA; // zone jamais visitée
-        }
-        if (t.settled()) {
-            t.frozenTick = guess;
-        }
-        return clock(guess);
+        ZonePeriods.Prediction p = ZonePeriods.predict(t.name, left);
+        return p == null ? NA : "~" + clock(p.tick());
     }
 
     private static Style style(int color, boolean bold) {

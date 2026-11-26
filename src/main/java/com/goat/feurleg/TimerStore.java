@@ -26,39 +26,18 @@ public final class TimerStore {
         boolean warned;
         boolean alerted;
 
-        /** Fin connue précisément : lue au moment exact où le chrono du menu a changé (ou reprise du fichier). */
-        boolean precise;
-        /** Quand ce timer a été créé ou relancé (heure réelle). */
-        long cycleStart;
-        /** Dernière valeur lue dans le menu (secondes) et quand, pour repérer le moment où elle change. */
-
-        /** Heure Minecraft du spawn, calculée une fois puis figée jusqu'au prochain cycle. -1 = pas encore. */
-        public long frozenTick = -1;
-        /** true si l'heure figée vient de l'horloge exacte de la zone (sinon estimation par le moment de la journée). */
-        public boolean frozenExact;
-
         Timer(String name, long endMillis) {
             this.name = name;
             this.endMillis = endMillis;
-            this.cycleStart = TickClock.now();
         }
 
-        /** Nouveau cycle (le serveur a relancé le timer) : on oublie l'heure figée. */
+        /** Nouveau cycle (le serveur a relancé le timer). */
         void restart(long newEnd, long now) {
             if (newEnd > endMillis) {
                 warned = false;
                 alerted = false;
             }
             endMillis = newEnd;
-            precise = false;
-            cycleStart = now;
-            frozenTick = -1;
-            frozenExact = false;
-        }
-
-        /** Assez sûr pour figer l'heure Minecraft : fin précise, ou lue depuis plus de 10 s. */
-        public boolean settled() {
-            return precise || TickClock.now() - cycleStart > 10_000;
         }
 
         /** Temps restant en millisecondes "temps serveur" (1 s = 20 ticks du serveur, comme le timer de /leg). */
@@ -99,7 +78,6 @@ public final class TimerStore {
             saved.forEach((name, end) -> {
                 // Le fichier garde la fin en temps réel ; en mémoire, elle est en "temps serveur"
                 Timer t = new Timer(name, TickClock.fromReal(end));
-                t.precise = true; // déjà affinée lors d'une session précédente
                 // Ne pas re-sonner pour des timers déjà passés pendant qu'on était absent.
                 if (end - now <= FeurlegConfig.get().warnSeconds * 1000L) t.warned = true;
                 if (end - now <= 0) t.alerted = true;

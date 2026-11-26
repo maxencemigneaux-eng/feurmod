@@ -27,12 +27,8 @@ public final class ZoneClock {
     /** Heure connue d'une zone : timeOfDay au moment "millis", et vitesse (ticks par tick réel). */
     public static final class Clock {
         public long tod;
-        /** Moment de la mesure, en temps réel (pour le fichier). */
         public long millis;
-        /** Vitesse de l'heure de la zone, en ticks d'heure par tick du serveur (1.0 normalement). */
         public double rate = 1.0;
-        /** Moment de la mesure en "temps serveur" (cette session seulement, pas enregistré). */
-        transient long serverMillis = -1;
     }
 
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
@@ -55,8 +51,6 @@ public final class ZoneClock {
     private static String currentZone;
     private static long anchorTod, anchorMillis, lastTod, lastMillis;
     private static boolean hasAnchor;
-    /** La zone actuelle vient du HUD du serveur (sinon de /leg ou de la dimension). */
-    private static boolean zoneFromHud;
     private static int tickCounter;
     private static long lastSave;
 
@@ -69,11 +63,6 @@ public final class ZoneClock {
         if (data.clocks == null) data.clocks = new LinkedHashMap<>();
         if (data.dimensionToZone == null) data.dimensionToZone = new HashMap<>();
         if (data.ambiguousDimensions == null) data.ambiguousDimensions = new HashSet<>();
-        // Les anciennes vitesses étaient mesurées en temps réel (faussées quand le serveur rame) : une vitesse proche
-        // de 1 est en fait une heure normale, on repart de 1 (elle sera remesurée en temps serveur dans la zone).
-        for (Clock c : data.clocks.values()) {
-            if (c.rate > 0.85 && c.rate < 1.15) c.rate = 1.0;
-        }
         lastWorld = null;
         currentZone = null;
         hasAnchor = false;
@@ -104,7 +93,6 @@ public final class ZoneClock {
         }
         if (!zone.equals(currentZone)) hasAnchor = false;
         currentZone = zone;
-        zoneFromHud = false;
 
         String dim = client.level.dimension().location().toString();
         if (!GENERIC_DIMENSIONS.contains(dim) && !data.ambiguousDimensions.contains(dim)) {
@@ -138,8 +126,7 @@ public final class ZoneClock {
 
     private static void sample(ClientLevel world, boolean force) {
         long tod = world.getDayTime();
-        // La vitesse se mesure en "temps serveur" : 1 tick d'heure par tick du serveur, même quand le serveur rame
-        long now = TickClock.now();
+        long now = System.currentTimeMillis();
         Clock c = data.clocks.computeIfAbsent(currentZone, z -> new Clock());
 
         if (!hasAnchor) {
@@ -154,8 +141,7 @@ public final class ZoneClock {
                 anchorTod = tod;
                 anchorMillis = now;
             } else if (now - anchorMillis >= 60_000) {
-                // Mesure sur au moins 1 min : sur 10 s, l'heure du client (corrigée par le serveur 1 fois/s)
-                // donnait une vitesse fausse de plusieurs %, donc une heure prévue décalée.
+                // Mesure sur au moins 1 min : sur 10 s, l'heure du client (corrigée par le serveur 1 fois/s) est trop imprécise
                 double measured = (tod - anchorTod) / ((now - anchorMillis) / 50.0);
                 c.rate = Math.max(0.0, Math.min(20.0, measured));
             }
@@ -163,71 +149,23 @@ public final class ZoneClock {
         lastTod = tod;
         lastMillis = now;
         c.tod = tod;
-        c.millis = System.currentTimeMillis();
-        c.serverMillis = now;
+        c.millis = now;
 
-        if (force || System.currentTimeMillis() - lastSave > 30_000) save();
+        if (force || now - lastSave > 30_000) save();
     }
 
-    /**
-     * Zone lue dans le HUD du serveur (nom du monde en haut de l'écran), null si aucun nom de zone n'est affiché.
-     * Plus fiable que /leg : le joueur n'a rien à ouvrir, et c'est vérifié chaque seconde.
-     */
-    public static void onHudZone(String zone) {
-        Minecraft client = Minecraft.getInstance();
-        if (client.level == null || serverKey == null) return;
-        if (zone == null) {
-            // Ne retire que ce que le HUD avait trouvé (un serveur sans nom de monde à l'écran garde /leg)
-            if (zoneFromHud && currentZone != null) {
-                currentZone = null;
-                hasAnchor = false;
-            }
-            zoneFromHud = false;
-            return;
-        }
-        lastWorld = client.level;
-        zoneFromHud = true;
-        if (zone.equals(currentZone)) return; // déjà connue : tick() la mesure chaque seconde
-        currentZone = zone;
-        hasAnchor = false;
-        String dim = client.level.dimension().location().toString();
-        if (!GENERIC_DIMENSIONS.contains(dim) && !data.ambiguousDimensions.contains(dim)) {
-            String known = data.dimensionToZone.get(dim);
-            if (known == null) {
-                data.dimensionToZone.put(dim, zone);
-            } else if (!known.equals(zone)) {
-                data.dimensionToZone.remove(dim);
-                data.ambiguousDimensions.add(dim);
-            }
-        }
-        sample(client.level, true);
-    }
-
-    /**
-     * L'heure de cette zone a-t-elle été mesurée pendant cette session ? Sinon elle vient du fichier et a pu changer
-     * depuis (redémarrage du serveur, nuit passée en dormant...) : ce n'est qu'une estimation.
-     */
-    public static boolean isFresh(String zone) {
-        Clock c = data.clocks.get(zone);
-        return c != null && c.serverMillis >= 0;
-    }
-
-    /** Zone où se trouve le joueur (repérée avec /leg ou la dimension), ou null. */
+    /** Zone où se trouve le joueur (repérée avec /leg ou la dimension), ou null : sa ligne du FeurHUD est en gras. */
     public static String currentZone() {
         return currentZone;
     }
 
-    /**
-     * Heure de la journée (0-23999) dans la zone, dans "millisFromNow" ms de temps serveur (= le temps restant d'un
-     * timer : 1 s = 20 ticks). null si on ne connaît pas encore la zone.
-     */
+    /** Heure de la journée (0-23999) dans la zone, dans "millisFromNow" ms. null si on ne connaît pas encore la zone. */
     public static Long predictTick(String zone, long millisFromNow) {
         Clock c = data.clocks.get(zone);
         if (c == null) return null;
-        // Temps serveur écoulé depuis la mesure : exact si elle date de cette session, sinon estimé (temps réel)
-        long since = c.serverMillis >= 0 ? TickClock.now() - c.serverMillis : System.currentTimeMillis() - c.millis;
-        double ticks = c.rate * ((since + millisFromNow) / 50.0);
-        return Math.floorMod(c.tod + Math.round(ticks), 24000L);
+        long target = System.currentTimeMillis() + millisFromNow;
+        double ticks = c.rate * ((target - c.millis) / 50.0);
+        return Math.floorMod(c.tod + (long) ticks, 24000L);
     }
 
     private static void save() {

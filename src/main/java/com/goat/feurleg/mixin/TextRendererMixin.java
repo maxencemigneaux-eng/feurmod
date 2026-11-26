@@ -24,7 +24,7 @@ public abstract class TextRendererMixin {
                                        MultiBufferSource consumers, Font.DisplayMode layer,
                                        int background, int light, boolean mirror,
                                        CallbackInfoReturnable<Integer> cir) {
-        if (TextCapture.isRecording() && text != null) {
+        if (TextCapture.isCapturing() && text != null) {
             TextCapture.record(text, x, y, matrix);
         }
     }
@@ -36,7 +36,7 @@ public abstract class TextRendererMixin {
                                         MultiBufferSource consumers, Font.DisplayMode layer,
                                         int background, int light,
                                         CallbackInfoReturnable<Integer> cir) {
-        if (TextCapture.isRecording() && text != null) {
+        if (TextCapture.isCapturing() && text != null) {
             StringBuilder sb = new StringBuilder();
             text.accept((index, style, codePoint) -> {
                 sb.appendCodePoint(codePoint);
