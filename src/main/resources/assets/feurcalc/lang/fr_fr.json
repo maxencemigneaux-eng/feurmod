@@ -207,7 +207,9 @@
   "feurcalc.export.empty": "Pas d'équipe à exporter",
   "feurcalc.export.error": "Export impossible",
   "feurcalc.export.done": "Équipe copiée (%s Pokémon)",
-  "feurcalc.export.where": "Colle-la sur pokepast.es ou dans Showdown",
-  "feurcalc.tip.export": "Copie ton équipe au format Showdown / PokePaste",
-  "feurcalc.tip.export2": "Puis Ctrl+V sur pokepast.es ou dans le teambuilder de Showdown"
+  "feurcalc.export.where": "Texte copié : colle-le sur pokepast.es ou dans Showdown",
+  "feurcalc.tip.export": "Crée un PokePaste de ton équipe et copie son lien",
+  "feurcalc.tip.export2": "Showdown › Import/Export : colle le lien (Ctrl+V)",
+  "feurcalc.export.link": "Lien PokePaste copié",
+  "feurcalc.export.title": "Équipe de %s"
 }
