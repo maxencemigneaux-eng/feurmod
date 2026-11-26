@@ -31,9 +31,6 @@ public final class TimerStore {
         /** Quand ce timer a été créé ou relancé (heure réelle). */
         long cycleStart;
         /** Dernière valeur lue dans le menu (secondes) et quand, pour repérer le moment où elle change. */
-        long lastShown = -1;
-        long lastShownAt;
-        long lastEdgeAt;
 
         /** Heure Minecraft du spawn, calculée une fois puis figée jusqu'au prochain cycle. -1 = pas encore. */
         public long frozenTick = -1;
@@ -121,11 +118,7 @@ public final class TimerStore {
 
     /**
      * Met à jour avec les valeurs lues dans le menu /leg (secondes restantes par zone). Appelé à chaque image tant que
-     * le menu est ouvert.
-     *
-     * Le menu n'est pas rafraîchi à chaque image par le serveur : une même valeur reste affichée un moment, donc
-     * "maintenant + valeur" est de plus en plus en retard au fil des images (c'était la source des erreurs de quelques
-     * secondes). La seule lecture fiable est celle de l'instant où la valeur change : c'est là qu'on cale la fin.
+     * le menu est ouvert. Comme avant la 1.0.46 : le timer se recale dès que l'écart avec /leg dépasse 2 s.
      */
     public void sync(Map<String, Long> secondsByZone) {
         long now = TickClock.now();
@@ -143,24 +136,15 @@ public final class TimerStore {
             } else if (Math.abs(estimate - t.endMillis) > RESTART_MS) {
                 t.restart(estimate, now);
                 changed = true;
-            } else {
-                // La valeur vient de changer entre deux images qui se suivent : lecture fraîche, au plus près.
-                boolean edge = t.lastShown >= 0 && shown != t.lastShown && now - t.lastShownAt < 1500;
-                if (edge) {
-                    // Nouvelle ouverture du menu : on repart de cette lecture ; sinon on garde la plus tôt
-                    // (une lecture ne peut être qu'en retard, jamais en avance).
-                    long best = (!t.precise || now - t.lastEdgeAt > 60_000) ? estimate : Math.min(t.endMillis, estimate);
-                    if (best != t.endMillis) changed = true;
-                    t.endMillis = best;
-                    t.precise = true;
-                    t.lastEdgeAt = now;
-                } else if (!t.precise && estimate < t.endMillis) {
-                    t.endMillis = estimate;
-                    changed = true;
+            } else if (Math.abs(estimate - t.endMillis) > 2000) {
+                // Petit écart : même cycle, on recale la fin (l'heure de spawn figée ne bouge pas)
+                if (estimate > t.endMillis) {
+                    t.warned = false;
+                    t.alerted = false;
                 }
+                t.endMillis = estimate;
+                changed = true;
             }
-            t.lastShown = shown;
-            t.lastShownAt = now;
             reordered.put(t.name, t);
         }
         for (Timer t : timers.values()) reordered.putIfAbsent(t.name, t);

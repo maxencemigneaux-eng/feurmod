@@ -70,7 +70,6 @@ public final class FeurlegClient implements ClientModInitializer {
                     ? "§c[FeurHUD]§r Timers affichés" : "§c[FeurHUD]§r Timers cachés"), true);
             }
         }
-        TickClock.tick(client);
         if (client.player == null) return;
         ZoneClock.tick(client);
         ZonePeriods.tickSave();
