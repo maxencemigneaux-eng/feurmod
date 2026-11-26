@@ -506,6 +506,30 @@ public final class MonState {
         return out;
     }
 
+    /** Active / change / enlève la Méga ; megaAbility = talent de la forme Méga (null : celui de Showdown). */
+    public void setMega(int value, @Nullable String megaAbility) {
+        if (mega == 0 && value > 0) {
+            abilityBeforeMega = ability;
+        }
+        mega = value;
+        if (value > 0) {
+            tera = false;
+            if (megaAbility != null && !megaAbility.isEmpty()) {
+                ability = megaAbility;
+            }
+        } else if (abilityBeforeMega != null) {
+            ability = abilityBeforeMega;
+            abilityBeforeMega = null;
+        }
+    }
+
+    /** Talent de la Méga choisie (forme Cobblemon), sinon null. */
+    @Nullable
+    public String megaAbility() {
+        List<FormData> megas = megaForms(species);
+        return mega > 0 && mega <= megas.size() ? defaultAbility(megas.get(mega - 1)) : null;
+    }
+
     /** La forme utilisée pour le calcul : la forme Méga choisie, sinon la forme actuelle. */
     public FormData calcForm() {
         if (mega > 0 && form != null) {

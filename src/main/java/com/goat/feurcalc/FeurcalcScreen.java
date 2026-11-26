@@ -1353,25 +1353,13 @@ public final class FeurcalcScreen extends Screen {
 
     /** Active / change / enlève la Méga : talent de la forme Méga (sa météo / son champ suivent tout seuls). */
     private void setMega(MonState m, int value, List<FormData> megaForms, List<String> megaNames) {
-        if (m.mega == 0 && value > 0) {
-            m.abilityBeforeMega = m.ability;
+        String ability = null;
+        if (value > 0 && !megaForms.isEmpty() && value <= megaForms.size()) {
+            ability = MonState.defaultAbility(megaForms.get(value - 1));
+        } else if (value > 0 && value <= megaNames.size()) {
+            ability = SHOWDOWN_MEGA_ABILITY.get(megaNames.get(value - 1));
         }
-        m.mega = value;
-        if (value > 0) {
-            m.tera = false;
-            String ability = null;
-            if (!megaForms.isEmpty() && value <= megaForms.size()) {
-                ability = MonState.defaultAbility(megaForms.get(value - 1));
-            } else if (value <= megaNames.size()) {
-                ability = SHOWDOWN_MEGA_ABILITY.get(megaNames.get(value - 1));
-            }
-            if (ability != null && !ability.isEmpty()) {
-                m.ability = ability;
-            }
-        } else if (m.abilityBeforeMega != null) {
-            m.ability = m.abilityBeforeMega;
-            m.abilityBeforeMega = null;
-        }
+        m.setMega(value, ability);
         state.tick();
     }
 

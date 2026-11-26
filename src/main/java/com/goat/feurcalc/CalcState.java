@@ -53,6 +53,8 @@ public final class CalcState {
     @Nullable private String lastMySig;
     @Nullable private String lastOppSig;
     private int lastFieldVersion = -1;
+    /** Pokémon dont la Méga a déjà été mise toute seule (on ne la remet pas si tu l'enlèves à la main). */
+    @Nullable private UUID autoMegaA, autoMegaB;
 
     // Calcul
     @Nullable private String lastRequest;
@@ -200,6 +202,41 @@ public final class CalcState {
         }
     }
 
+    /**
+     * Le Pokémon vient de Méga-évoluer (forme Méga reçue, ou message de Méga-évolution) : Méga activée dans le calc,
+     * une seule fois. Renvoie true quand c'est fait (ou déjà Méga).
+     */
+    private boolean autoMega(MonState m, ClientBattlePokemon bp, @Nullable Pokemon own, @Nullable UUID done) {
+        if (m.uuid == null || m.uuid.equals(done) || m.species == null) {
+            return false;
+        }
+        List<com.cobblemon.mod.common.pokemon.FormData> megas = MonState.megaForms(m.species);
+        if (megas.contains(m.form) || m.mega > 0) {
+            return true; // déjà en forme Méga
+        }
+        com.cobblemon.mod.common.pokemon.FormData now = m.species.getForm(MonState.battleAspects(bp));
+        if (!megas.contains(now) && own != null && megas.contains(own.getForm())) {
+            now = own.getForm();
+        }
+        String hint = BattleLog.megaHint(bp.getUuid());
+        int index = megas.indexOf(now);
+        if (index < 0 && hint == null) {
+            return false;
+        }
+        if (index < 0 && !megas.isEmpty()) {
+            index = 0;
+            String h = Names.toId(hint);
+            for (int i = 0; i < megas.size(); i++) {
+                String tail = Names.toId(megas.get(i).getName()).replaceFirst("^.*mega", "");
+                if (!tail.isEmpty() && (h.endsWith(tail) || h.contains("mega" + tail) || h.contains(tail + "ite"))) {
+                    index = i;
+                }
+            }
+        }
+        m.setMega(Math.max(0, index) + 1, megas.isEmpty() ? null : MonState.defaultAbility(megas.get(Math.max(0, index))));
+        return true;
+    }
+
     /** Si A est vide, on prend le premier Pokémon de l'équipe. */
     public void fillFromParty() {
         List<Pokemon> party = party();
@@ -335,6 +372,7 @@ public final class CalcState {
                 }
                 fresh.uuid = mine.getUuid();
                 a.copyFrom(fresh);
+                autoMegaA = null;
                 lastMyUuid = mine.getUuid();
                 lastMySig = null;
             }
@@ -343,6 +381,7 @@ public final class CalcState {
                 a.updateFromBattle(mine);
                 lastMySig = sig;
             }
+            if (autoMega(a, mine, findOwn(mine, mySide), autoMegaA)) autoMegaA = a.uuid;
             battleCounters(a, mine.getUuid(), true);
         }
 
@@ -354,6 +393,7 @@ public final class CalcState {
                     fresh.autoSet = true; // le set le plus joué (Smogon / Showdown)
                 }
                 b.copyFrom(fresh);
+                autoMegaB = null;
                 lastOppUuid = opp.getUuid();
                 lastOppSig = null;
             }
@@ -362,6 +402,7 @@ public final class CalcState {
                 b.updateFromBattle(opp);
                 lastOppSig = sig;
             }
+            if (autoMega(b, opp, null, autoMegaB)) autoMegaB = b.uuid;
             battleCounters(b, opp.getUuid(), false);
             rememberOpponent(opp.getUuid(), b);
         }

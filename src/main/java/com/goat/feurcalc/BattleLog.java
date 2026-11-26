@@ -131,6 +131,7 @@ public final class BattleLog {
             battleId = battle.getBattleId();
             REVEALED.clear();
             BOOSTS.clear();
+            MEGA.clear();
             PASSING.clear();
             PARADOX.clear();
             TOXIC_TICKS.clear();
@@ -276,6 +277,9 @@ public final class BattleLog {
             return;
         }
         String key = contents.getKey();
+        if (key.toLowerCase(java.util.Locale.ROOT).contains("mega")) {
+            megaMessage(battle, contents.getArgs());
+        }
         if (!key.startsWith(PREFIX)) {
             return;
         }
@@ -477,6 +481,24 @@ public final class BattleLog {
             }
         }
         return -1;
+    }
+
+    /** Pokémon qui ont Méga-évolué (lu dans les messages) → le texte du message, pour savoir si c'est X ou Y. */
+    private static final Map<UUID, String> MEGA = new HashMap<>();
+
+    @Nullable
+    public static String megaHint(@Nullable UUID uuid) {
+        return uuid == null ? null : MEGA.get(uuid);
+    }
+
+    private static void megaMessage(ClientBattle battle, Object[] args) {
+        StringBuilder all = new StringBuilder();
+        ClientBattlePokemon who = null;
+        for (Object o : args) {
+            all.append(' ').append(text(o));
+            if (who == null) who = resolve(battle, o);
+        }
+        if (who != null) MEGA.put(who.getUuid(), all.toString());
     }
 
     private static void handleOther(ClientBattle battle, String k, Object[] args) {

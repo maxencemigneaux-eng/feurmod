@@ -261,6 +261,11 @@ public final class SmogonSets {
         if (!set.ability().isEmpty()) {
             m.ability = set.ability();
         }
+        String megaAbility = m.megaAbility();
+        if (megaAbility != null) {
+            m.abilityBeforeMega = m.ability; // Méga activée : son talent reste
+            m.ability = megaAbility;
+        }
         m.item = set.bestItem();
         if (!set.nature().isEmpty()) {
             m.nature = set.nature();
