@@ -47,7 +47,7 @@ public final class FeurmodClient implements ClientModInitializer {
                 Minecraft client = ctx.getSource().getClient();
                 client.tell(() -> client.setScreen(new SettingsScreen(null)));
                 return 1;
-            }));
+            }).then(ClientCommandManager.literal("maj").executes(ctx -> UpdateCheck.openDownload() ? 1 : 0)));
             dispatcher.register(ClientCommandManager.literal("feursearch")
                 .then(ClientCommandManager.argument("recherche", StringArgumentType.greedyString())
                     .executes(ctx -> {

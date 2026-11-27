@@ -22,6 +22,8 @@ public final class UpdateCheck {
     private static final String STATUS = "https://raw.githubusercontent.com/maxencemigneaux-eng/feurmod/main/telechargement/statut.txt";
     private static final Pattern VERSION = Pattern.compile("Feurmod (\\d+(?:\\.\\d+)+)");
     private static boolean done;
+    /** Lien du dernier .jar trouvé : ouvert par /feurmod maj, jamais écrit dans le jeu (il contient le nom du compte GitHub). */
+    private static String downloadUrl;
 
     private UpdateCheck() {}
 
@@ -41,17 +43,33 @@ public final class UpdateCheck {
                     if (!m.find() || lines.length < 2 || !lines[1].trim().endsWith(".jar")) return;
                     String latest = m.group(1);
                     if (compare(latest, installed) <= 0) return;
-                    String url = REPO + "/raw/main/telechargement/" + URLEncoder.encode(lines[1].trim(), StandardCharsets.UTF_8);
+                    downloadUrl = REPO + "/raw/main/telechargement/" + URLEncoder.encode(lines[1].trim(), StandardCharsets.UTF_8);
                     Minecraft mc = Minecraft.getInstance();
                     mc.execute(() -> {
                         if (mc.player == null) return;
+                        // Clic → /feurmod maj, qui ouvre le navigateur directement : l'adresse n'apparaît ni au survol
+                        // ni dans l'écran de confirmation de Minecraft
                         mc.player.displayClientMessage(Component.literal("§6[Feurmod]§r Nouvelle version §a" + latest
-                                + "§r (tu as " + installed + ") : ").append(Component.literal("§n télécharger").withStyle(s -> s
-                                .withClickEvent(new ClickEvent(ClickEvent.Action.OPEN_URL, url))
-                                .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Component.literal(url))))), false);
+                                + "§r (tu as " + installed + ") : ").append(Component.literal("§ntélécharger").withStyle(s -> s
+                                .withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/feurmod maj"))
+                                .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT,
+                                        Component.literal("Ouvre le téléchargement de la " + latest + " dans ton navigateur"))))), false);
                     });
                 })
                 .exceptionally(e -> null); // pas d'internet / GitHub en panne : on ne dit rien
+    }
+
+    /** /feurmod maj : ouvre le téléchargement de la nouvelle version, s'il y en a une. */
+    public static boolean openDownload() {
+        Minecraft mc = Minecraft.getInstance();
+        if (downloadUrl == null) {
+            if (mc.player != null) {
+                mc.player.displayClientMessage(Component.literal("§6[Feurmod]§r Pas de nouvelle version (tu as " + installedVersion() + ")"), false);
+            }
+            return false;
+        }
+        net.minecraft.Util.getPlatform().openUri(downloadUrl);
+        return true;
     }
 
     static String installedVersion() {
