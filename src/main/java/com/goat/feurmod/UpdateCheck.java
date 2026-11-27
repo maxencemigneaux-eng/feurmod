@@ -34,7 +34,9 @@ public final class UpdateCheck {
         done = true;
         String installed = installedVersion();
         HttpRequest req = HttpRequest.newBuilder(URI.create(STATUS)).timeout(Duration.ofSeconds(10)).GET().build();
-        HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build()
+        HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10))
+                .followRedirects(HttpClient.Redirect.NORMAL) // marche encore si le compte GitHub change de nom
+                .build()
                 .sendAsync(req, HttpResponse.BodyHandlers.ofString())
                 .thenAccept(r -> {
                     if (r.statusCode() != 200) return;
