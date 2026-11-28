@@ -18,8 +18,8 @@ import java.util.regex.Pattern;
 
 /** À la connexion (une fois par lancement) : s'il y a une version plus récente sur GitHub, lien de téléchargement dans le chat. */
 public final class UpdateCheck {
-    private static final String REPO = "https://github.com/maxencemigneaux-eng/feurmod";
-    private static final String STATUS = "https://raw.githubusercontent.com/maxencemigneaux-eng/feurmod/main/telechargement/statut.txt";
+    private static final String REPO = "https://github.com/maxzit0/feurmod";
+    private static final String STATUS = "https://raw.githubusercontent.com/maxzit0/feurmod/main/telechargement/statut.txt";
     private static final Pattern VERSION = Pattern.compile("Feurmod (\\d+(?:\\.\\d+)+)");
     private static boolean done;
     /** Lien du dernier .jar trouvé : ouvert par /feurmod maj, jamais écrit dans le jeu (il contient le nom du compte GitHub). */
